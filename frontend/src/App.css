@@ -1,0 +1,23 @@
+/* Prevent overscroll that can push fixed header out of view */
+html {
+  overscroll-behavior: none;
+}
+
+body {
+  overscroll-behavior: none;
+  position: relative;
+}
+
+/* Ensure fixed elements stay truly fixed */
+.fixed {
+  position: fixed !important;
+}
+
+/* Force header to stay at top of viewport */
+header.fixed {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 9999 !important;
+}
