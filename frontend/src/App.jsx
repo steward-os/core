@@ -44,6 +44,9 @@ import MailingBlockList from "./pages/MailingBlock/MailingBlockList";
 import MeetingDetail from "./pages/Meeting/MeetingDetail";
 import MeetingEdit from "./pages/Meeting/MeetingEdit";
 import MeetingList from "./pages/Meeting/MeetingList";
+import SettingDetail from "./pages/Setting/SettingDetail";
+import SettingEdit from "./pages/Setting/SettingEdit";
+import SettingList from "./pages/Setting/SettingList";
 import MeetingMinutes from "./pages/MeetingMinutes";
 import MeetingTemplateDetail from "./pages/MeetingTemplate/MeetingTemplateDetail";
 import MeetingTemplateEdit from "./pages/MeetingTemplate/MeetingTemplateEdit";
@@ -271,6 +274,10 @@ const App = () => {
                       <Route path="/media-files/:id" element={<MediaFileDetail />} />
                       <Route path="/media-files/:id/edit" element={<MediaFileEdit />} />
                       <Route path="/encryptie" element={<EncryptiePage />} />
+                      <Route path="/settings" element={<SettingList isAdmin={isAdmin} />} />
+                      <Route path="/settings/new" element={<SettingEdit />} />
+                      <Route path="/settings/:id" element={<SettingDetail isAdmin={isAdmin} />} />
+                      <Route path="/settings/:id/edit" element={<SettingEdit />} />
                     </>
                   )}
                   {isBoardMember && (

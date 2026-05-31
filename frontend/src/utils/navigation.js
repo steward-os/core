@@ -16,6 +16,7 @@ export const adminMenuItems = [
   { key: "parameters", label: "Parameters", path: "/parameters", adminPage: true },
   { key: "media-files", label: "Bestanden", path: "/media-files", adminPage: true },
   { key: "encryptie", label: "Encryptie", path: "/encryptie", adminPage: true },
+  { key: "settings", label: "Settings", path: "/settings", adminPage: true },
 ];
 
 export const sessionMenuItems = [
@@ -29,9 +30,15 @@ export const boardMenuItems = [
   { key: "projects", label: "Projecten", path: "/projects", boardMemberPage: true },
   { key: "relations", label: "Relatiebeheer", path: "/relations", boardMemberPage: true },
   { key: "correspondence", label: "Correspondentie", path: "/correspondence", boardMemberPage: true },
-  { key: "email-templates", label: "E-mailtemplates", path: "/email-templates", boardMemberPage: true },
-  { key: "mailing-blocks", label: "Mailingblokken", path: "/mailing-blocks", boardMemberPage: true },
-  { key: "mailings", label: "Mailings", path: "/mailings", boardMemberPage: true },
+  {
+    key: "email-templates",
+    label: "E-mailtemplates",
+    path: "/email-templates",
+    boardMemberPage: true,
+    group: "Mailings",
+  },
+  { key: "mailing-blocks", label: "Mailingblokken", path: "/mailing-blocks", boardMemberPage: true, group: "Mailings" },
+  { key: "mailings", label: "Overzicht mailings", path: "/mailings", boardMemberPage: true, group: "Mailings" },
 ];
 
 export const financeMenuItems = [
@@ -67,6 +74,28 @@ export const getVisibleAccountMenuItems = (isBoardMember, isFinancialAdmin) => [
   ...(isBoardMember || isFinancialAdmin ? [{ key: "sleutels", label: "Sleutels", path: "/account/sleutels" }] : []),
   { key: "logout", label: "Uitloggen", path: "/account/logout" },
 ];
+
+// Groups items by their `group` key. Returns a mixed array of plain items and
+// group objects { type: 'group', name, items } in the order they first appear.
+export function groupMenuItems(items) {
+  const result = [];
+  const groupMap = new Map();
+
+  for (const item of items) {
+    if (item.group) {
+      if (!groupMap.has(item.group)) {
+        const group = { type: "group", name: item.group, items: [] };
+        groupMap.set(item.group, group);
+        result.push(group);
+      }
+      groupMap.get(item.group).items.push(item);
+    } else {
+      result.push(item);
+    }
+  }
+
+  return result;
+}
 
 export const allMenuItemPaths = [
   ...menuItems,

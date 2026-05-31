@@ -1,3 +1,5 @@
+import { Disclosure } from "@headlessui/react";
+import { ChevronRightIcon } from "@heroicons/react/24/outline";
 import { Link, useLocation } from "react-router-dom";
 import { useAppHeaderVisibility } from "../../hooks/useAppHeaderVisibility";
 import {
@@ -6,6 +8,7 @@ import {
     getVisibleBoardMenuItems,
     getVisibleFinanceMenuItems,
     getVisibleSessionMenuItems,
+    groupMenuItems,
 } from "../../utils/navigation";
 
 const SubNavLayout = ({ children, isAdmin, isBoardMember, isSessionAdmin, isFinancialAdmin, isVolunteerAdmin, isBannerAdmin }) => {
@@ -54,18 +57,50 @@ const SubNavLayout = ({ children, isAdmin, isBoardMember, isSessionAdmin, isFina
                         {activeSection.name}
                     </h2>
                     <nav className="space-y-1">
-                        {activeSection.items.map((item) => {
-                            const isActive = location.pathname.startsWith(item.path);
+                        {groupMenuItems(activeSection.items).map((entry) => {
+                            if (entry.type === "group") {
+                                const isGroupActive = entry.items.some(item => location.pathname.startsWith(item.path));
+                                return (
+                                    <Disclosure key={`group-${entry.name}`} defaultOpen={isGroupActive}>
+                                        {({ open }) => (
+                                            <>
+                                                <Disclosure.Button className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-colors">
+                                                    <span>{entry.name}</span>
+                                                    <ChevronRightIcon className={`${open ? "rotate-90" : ""} w-4 h-4 transition-transform`} />
+                                                </Disclosure.Button>
+                                                <Disclosure.Panel className="mt-1 space-y-1 pl-3">
+                                                    {entry.items.map((item) => {
+                                                        const isActive = location.pathname.startsWith(item.path);
+                                                        return (
+                                                            <Link
+                                                                key={item.key}
+                                                                to={item.path}
+                                                                className={`block px-3 py-2 text-sm font-medium rounded-xl transition-colors ${isActive
+                                                                    ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                                                                    : "text-[var(--text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--text-primary)]"
+                                                                    }`}
+                                                            >
+                                                                {item.label}
+                                                            </Link>
+                                                        );
+                                                    })}
+                                                </Disclosure.Panel>
+                                            </>
+                                        )}
+                                    </Disclosure>
+                                );
+                            }
+                            const isActive = location.pathname.startsWith(entry.path);
                             return (
                                 <Link
-                                    key={item.key}
-                                    to={item.path}
+                                    key={entry.key}
+                                    to={entry.path}
                                     className={`block px-3 py-2 text-sm font-medium rounded-xl transition-colors ${isActive
                                         ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
                                         : "text-[var(--text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--text-primary)]"
                                         }`}
                                 >
-                                    {item.label}
+                                    {entry.label}
                                 </Link>
                             );
                         })}

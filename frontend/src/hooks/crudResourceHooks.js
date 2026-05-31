@@ -24,6 +24,7 @@ import { createMailingTemplateBlock, deleteMailingTemplateBlock, getMailingTempl
 import { createMailingBlock, deleteMailingBlock, getMailingBlock, getMailingBlocks, updateMailingBlock } from '../services/mailingBlockService';
 import { createMediaFile, deleteMediaFile, getMediaFile, getMediaFilesPage, updateMediaFile } from '../services/mediaFileService';
 import { createVolunteering, deleteVolunteering, duplicateVolunteering, getVolunteeringFiltered, getVolunteeringJob, getVolunteeringList, updateVolunteering } from '../services/volunteeringService';
+import { createSetting, deleteSetting, getSetting, getSettings, updateSetting } from '../services/settingService';
 
 // --- Banners ---
 const { useList: _useBannerList, useOne: useBanner, useCreate: useCreateBanner, useUpdate: useUpdateBanner, useDelete: useDeleteBanner } =
@@ -360,6 +361,16 @@ export const { useList: useMailingBlocks, useOne: useMailingBlock, useCreate: us
     update: updateMailingBlock,
     remove: deleteMailingBlock,
   }, { confirmMessage: "Weet je zeker dat je dit blok wilt verwijderen?" });
+
+// --- Settings ---
+export const { useList: useSettings, useOne: useSetting, useCreate: useCreateSetting, useUpdate: useUpdateSetting, useDelete: useDeleteSetting, useDeleteWithConfirm: useDeleteSettingWithConfirm } =
+  createResourceHooks('settings', {
+    getList: getSettings,
+    getOne: getSetting,
+    create: createSetting,
+    update: updateSetting,
+    remove: deleteSetting,
+  }, { confirmMessage: "Weet je zeker dat je deze instelling wilt verwijderen?" });
 
 // --- Media Files ---
 export const { useList: useMediaFiles, useOne: useMediaFile, useCreate: useCreateMediaFile, useUpdate: useUpdateMediaFile, useDelete: useDeleteMediaFile, useDeleteWithConfirm: useDeleteMediaFileWithConfirm } =

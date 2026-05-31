@@ -10,6 +10,7 @@ import {
   getVisibleBoardMenuItems,
   getVisibleFinanceMenuItems,
   getVisibleSessionMenuItems,
+  groupMenuItems,
   menuItems,
 } from "../../utils/navigation";
 
@@ -38,19 +39,18 @@ const NavItems = ({ items, onClick, location, isMobile }) => {
   ));
 };
 
-// Reusable mobile disclosure component
-const MobileDisclosure = ({ title, items, location, onClose }) => {
-  // Check if current page is in this disclosure section
+// Nested collapsible group within a MobileDisclosure panel
+const MobileSubDisclosure = ({ title, items, location, onClose }) => {
   const isCurrentSection = items.some((item) => location.pathname.startsWith(item.path));
 
   return (
-    <Disclosure as="div" className="mt-2" defaultOpen={isCurrentSection}>
+    <Disclosure as="div" defaultOpen={isCurrentSection}>
       {({ open }) => (
         <>
-          <Disclosure.Button className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-medium text-[var(--text-primary)] hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-colors">
+          <Disclosure.Button className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-colors">
             <span>{title}</span>
             <ChevronRightIcon
-              className={`${open ? "transform rotate-90" : ""} w-5 h-5 text-[var(--text-secondary)] transition-transform`}
+              className={`${open ? "transform rotate-90" : ""} w-4 h-4 text-[var(--text-secondary)] transition-transform`}
             />
           </Disclosure.Button>
           <Disclosure.Panel className="mt-1 space-y-1 pl-3">
@@ -67,6 +67,53 @@ const MobileDisclosure = ({ title, items, location, onClose }) => {
                 {item.label}
               </Link>
             ))}
+          </Disclosure.Panel>
+        </>
+      )}
+    </Disclosure>
+  );
+};
+
+// Reusable mobile disclosure component
+const MobileDisclosure = ({ title, items, location, onClose }) => {
+  // Check if current page is in this disclosure section
+  const isCurrentSection = items.some((item) => location.pathname.startsWith(item.path));
+  const grouped = groupMenuItems(items);
+
+  return (
+    <Disclosure as="div" className="mt-2" defaultOpen={isCurrentSection}>
+      {({ open }) => (
+        <>
+          <Disclosure.Button className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-medium text-[var(--text-primary)] hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-colors">
+            <span>{title}</span>
+            <ChevronRightIcon
+              className={`${open ? "transform rotate-90" : ""} w-5 h-5 text-[var(--text-secondary)] transition-transform`}
+            />
+          </Disclosure.Button>
+          <Disclosure.Panel className="mt-1 space-y-1 pl-3">
+            {grouped.map((entry) =>
+              entry.type === "group" ? (
+                <MobileSubDisclosure
+                  key={`group-${entry.name}`}
+                  title={entry.name}
+                  items={entry.items}
+                  location={location}
+                  onClose={onClose}
+                />
+              ) : (
+                <Link
+                  key={entry.key}
+                  to={entry.path}
+                  onClick={onClose}
+                  className={`block px-3 py-2 text-sm font-medium transition-colors ${location.pathname.startsWith(entry.path)
+                    ? "bg-black/10 dark:bg-white/10 text-[var(--text-primary)]"
+                    : "text-[var(--text-secondary)] hover:bg-black/5 dark:hover:bg-white/5 hover:text-[var(--text-primary)]"
+                    }`}
+                >
+                  {entry.label}
+                </Link>
+              )
+            )}
           </Disclosure.Panel>
         </>
       )}

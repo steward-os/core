@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import ActionEditModal from "../../features/actions/ActionEditModal";
 import CenteredAlert from "../../components/CenteredAlert";
-import { FilterRow, ListContainer } from "../../components/List";
+import { AddButton } from "../../components/Button";
+import { FilterRow, ListContainer, ListHeading } from "../../components/List";
 import { ListView } from "../../components/List/ListView";
 import SmartSearch from "../../components/List/SmartSearch";
 import { useSmartTagFilter } from "../../components/List/useSmartTagFilter";
@@ -235,8 +236,14 @@ const ActionList = () => {
     expand: "assigned_to,tags,bs_action_connections_via_action",
   });
 
+  const openNew = () => {
+    setEditingId(null);
+    setEditModalOpen(true);
+  };
+
   return (
     <ListContainer fullWidth>
+      <ListHeading button={<AddButton onClick={openNew} ariaLabel="Nieuwe actie" />}>Acties</ListHeading>
       <SmartSearch searchFields={["name"]} placeholder="Zoek op naam..." />
       <Tabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
       {isLoading && <CenteredAlert text="Laden..." />}

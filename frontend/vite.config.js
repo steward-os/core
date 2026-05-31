@@ -8,6 +8,11 @@ let commitHash = 'dev';
 try { commitHash = execSync('git rev-parse --short HEAD').toString().trim(); } catch (_) {}
 
 export default defineConfig({
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8090',
+    },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(new Date().toISOString()),
     __COMMIT_HASH__: JSON.stringify(commitHash),
@@ -46,29 +51,7 @@ export default defineConfig({
         enabled: true,
         type: 'module'
       },
-      manifest: {
-        name: 'Fanfare St. Servatius leden-app',
-        short_name: 'Servatius leden',
-        start_url: '/',
-        display: 'standalone',
-        background_color: '#ffffff',
-        theme_color: '#312C85',
-        lang: 'en',
-        scope: '/',
-        orientation: "any",
-        icons: [
-          {
-            src: '/icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: '/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-          },
-        ],
-      },
+      manifest: false,
       includeAssets: [
         'favicon.ico',
         'robots.txt',

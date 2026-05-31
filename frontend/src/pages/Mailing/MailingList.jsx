@@ -11,6 +11,7 @@ const STATUS_LABELS = { draft: "Concept", sent: "Verzonden" };
 const HEADER_COLUMNS = [
   {
     label: "Onderwerp",
+    width: "20%",
     field: "subject",
     sortable: true,
     mobilePosition: "title",
@@ -25,14 +26,9 @@ const HEADER_COLUMNS = [
   {
     label: "Status",
     width: "12%",
-    field: "status",
+    field: "state",
     sortable: true,
     mobilePosition: "info",
-    render: (m) => (
-      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${m.status === "sent" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-        {STATUS_LABELS[m.status] ?? m.status}
-      </span>
-    ),
   },
   {
     label: "Bijgewerkt",
@@ -56,10 +52,8 @@ const MailingList = () => {
   };
 
   return (
-    <ListContainer>
-      <ListHeading button={<AddButton onClick={handleCreate} ariaLabel="Nieuwe mailing" />}>
-        Mailings
-      </ListHeading>
+    <ListContainer fullWidth>
+      <ListHeading button={<AddButton onClick={handleCreate} ariaLabel="Nieuwe mailing" />}>Mailings</ListHeading>
 
       {isLoading && <CenteredAlert text="Laden..." />}
       {error && <CenteredAlert text={`Fout bij laden: ${error.message}`} />}

@@ -48,7 +48,7 @@ const TopicsList = React.memo(({ topicsHook, meetingId, minutesHook, currentMinu
   return (
     <div className="w-full flex flex-col pt-0 h-full">
       <div className="sticky top-0 z-10 bg-[var(--bg-color)]/80 backdrop-blur-md h-14 flex items-center justify-between px-6 py-2 mb-1 border-b border-[var(--glass-border)]">
-        <h4 className="text-md font-medium text-gray-700 dark:text-gray-300">Agendapunten</h4>
+        <h4 className="text-md font-medium text-gray-700 dark:text-gray-300">Agendapunten...</h4>
         <AddButton onClick={handleNewTopic} ariaLabel="Nieuw agendapunt" className="scale-90" />
       </div>
       <div className="w-full max-w-full">
