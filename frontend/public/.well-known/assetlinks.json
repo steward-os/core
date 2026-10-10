@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "nl.onzemuziek.app.debug",
+      "sha256_cert_fingerprints": [
+        "1A:D5:F5:7E:D1:E2:FE:67:07:C5:65:72:F5:2F:E5:36:24:2B:8F:4F:07:E7:C5:55:40:82:BF:28:0D:34:41:EB"
+      ]
+    }
+  }
+]
