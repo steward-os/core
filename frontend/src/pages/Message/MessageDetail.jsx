@@ -31,7 +31,7 @@ const MessageDetail = () => {
     const fetchMessage = async () => {
       setLoading(true);
       try {
-        const messageData = await getMessage(id, { expand: "groups,standard_message_reactions" });
+        const messageData = await getMessage(id, { expand: "groups" });
         setMessage(messageData);
       } catch (error) {
         console.error("Error fetching message:", error);
@@ -56,6 +56,8 @@ const MessageDetail = () => {
 
   if (loading) return <CenteredSpinner />;
   if (!message) return <CenteredAlert text="Bericht niet gevonden." />;
+
+  const reactionOptions = message.reaction_options || [];
 
   return (
     <PageContent fullWidth>
@@ -124,38 +126,37 @@ const MessageDetail = () => {
           )}
 
           {/* Reaction Buttons */}
-          {message.expand?.standard_message_reactions?.length > 0 && (
+          {reactionOptions.length > 0 && (
             <div className="mt-6 pt-6 border-t border-[var(--glass-border)]">
               <h3 className="text-base font-medium text-[var(--text-primary)] mb-3">Reacties</h3>
               <div className="flex flex-wrap gap-2">
-                {message.expand.standard_message_reactions.map((reaction) => {
-                  const existingReaction = userReactions.find((r) => r.standard_reaction === reaction.id);
+                {reactionOptions.map((reaction) => {
+                  const existingReaction = userReactions.find((r) => r.reaction === reaction);
                   const hasReacted = !!existingReaction;
                   return (
                     <button
-                      key={reaction.id}
+                      key={reaction}
                       type="button"
                       disabled={toggleReactionMutation.isPending}
                       onClick={() => {
                         const otherReaction = !message.allow_multiple_reactions && !existingReaction
-                          ? userReactions.find((r) => r.standard_reaction !== reaction.id)
+                          ? userReactions.find((r) => r.reaction !== reaction)
                           : null;
                         toggleReactionMutation.mutate({
                           messageId: id,
                           userId,
-                          standardReactionId: reaction.id,
+                          reaction,
                           existingReactionId: existingReaction?.id,
                           replaceReactionId: otherReaction?.id,
                         });
                       }}
-                      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
+                      className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
                         hasReacted
                           ? "bg-blue-500/15 border-blue-500/30 text-blue-600 dark:text-blue-400"
                           : "bg-[var(--glass-bg)] border-[var(--glass-border)] text-[var(--text-primary)] hover:bg-black/5 dark:hover:bg-white/10"
                       }`}
                     >
-                      <span>{reaction.emoji}</span>
-                      <span>{reaction.reaction}</span>
+                      {reaction}
                     </button>
                   );
                 })}
@@ -164,21 +165,18 @@ const MessageDetail = () => {
           )}
 
           {/* Admin Reaction Summary */}
-          {isAdmin && message.expand?.standard_message_reactions?.length > 0 && allReactions.length > 0 && (
+          {isAdmin && allReactions.length > 0 && (
             <div className="mt-6 pt-6 border-t border-[var(--glass-border)]">
               <h3 className="text-base font-medium text-[var(--text-primary)] mb-3">Reactie overzicht</h3>
               <div className="space-y-3">
-                {message.expand.standard_message_reactions.map((reaction) => {
-                  const reactionsForThis = allReactions.filter((r) => r.standard_reaction === reaction.id);
+                {reactionOptions.map((reaction) => {
+                  const reactionsForThis = allReactions.filter((r) => r.reaction === reaction);
                   if (reactionsForThis.length === 0) return null;
                   const userNames = reactionsForThis.map((r) => r.expand?.user?.name || "Onbekend").join(", ");
                   return (
-                    <div key={reaction.id} className="flex items-start gap-3 p-3 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-lg">
-                      <span className="text-lg">{reaction.emoji}</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-[var(--text-primary)]">{reaction.reaction} ({reactionsForThis.length})</div>
-                        <div className="text-sm text-[var(--text-secondary)] mt-0.5">{userNames}</div>
-                      </div>
+                    <div key={reaction} className="p-3 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-lg">
+                      <div className="font-medium text-[var(--text-primary)]">{reaction} ({reactionsForThis.length})</div>
+                      <div className="text-sm text-[var(--text-secondary)] mt-0.5">{userNames}</div>
                     </div>
                   );
                 })}

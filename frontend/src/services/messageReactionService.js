@@ -3,7 +3,7 @@ import pb from "../pb";
 export async function getMessageReactions(messageId, options = {}) {
   return await pb.collection("mb_message_reactions").getFullList({
     filter: `message="${messageId}"`,
-    expand: "user,standard_reaction",
+    expand: "user",
     ...options,
   });
 }

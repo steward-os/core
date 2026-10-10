@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "../../components/Button/Button";
 import { CloseButton } from "../../components/Button/CloseButton";
@@ -14,73 +14,59 @@ import PageContent from "../../components/Page/PageContent";
 import PageHeader from "../../components/Page/PageHeader";
 import pb from "../../pb";
 import { createMessage, getMessage, updateMessage } from "../../services/messageService";
-import { createStandardReaction, getStandardReactions } from "../../services/standardReactionService";
 import MessageDeliveryModal from "./MessageDeliveryModal";
 
-const EMOJI_OPTIONS = [
-  "👍",
-  "👎",
-  "❤️",
-  "🎵",
-  "🎶",
-  "🎺",
-  "🥁",
-  "🎷",
-  "✅",
-  "❌",
-  "🙋",
-  "👋",
-  "🎉",
-  "🔥",
-  "⭐",
-  "💪",
-  "😊",
-  "😢",
-  "😮",
-  "🤔",
-  "😍",
-  "👏",
-  "🙏",
-  "💬",
-];
+const ReactionOptionsInput = ({ options, onChange }) => {
+  const [text, setText] = useState("");
 
-const EmojiPicker = ({ onSelect, onClose, reactionText }) => {
-  const pickerRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target)) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onClose]);
+  const addOption = () => {
+    const value = text.trim();
+    if (!value) return;
+    if (!options.includes(value)) onChange([...options, value]);
+    setText("");
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25">
-      <div ref={pickerRef} className="bg-white rounded-lg shadow-xl border border-gray-200 p-4 max-w-xs w-full">
-        <p className="text-sm font-medium text-gray-700 mb-3">Kies een emoji voor &ldquo;{reactionText}&rdquo;</p>
-        <div className="grid grid-cols-8 gap-1">
-          {EMOJI_OPTIONS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => onSelect(emoji)}
-              className="w-9 h-9 flex items-center justify-center text-xl rounded hover:bg-blue-100 transition-colors"
+    <div>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <Input
+            id="reaction_options"
+            placeholder="Typ een reactie, bijv. Ik kom"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addOption();
+              }
+            }}
+            maxLength={100}
+          />
+        </div>
+        <Button type="button" onClick={addOption} color="gray" text="Toevoegen" />
+      </div>
+      {options.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {options.map((option) => (
+            <span
+              key={option}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm border bg-[var(--glass-bg)] border-[var(--glass-border)] text-[var(--text-primary)]"
             >
-              {emoji}
-            </button>
+              {option}
+              <button
+                type="button"
+                onClick={() => onChange(options.filter((o) => o !== option))}
+                className="text-[var(--text-secondary)] hover:text-red-500"
+                aria-label={`${option} verwijderen`}
+              >
+                &times;
+              </button>
+            </span>
           ))}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-3 w-full text-sm text-gray-500 hover:text-gray-700 text-center"
-        >
-          Annuleren
-        </button>
-      </div>
+      )}
+      <p className="mt-1 text-xs text-[var(--text-secondary)]">Druk op Enter om een reactie toe te voegen.</p>
     </div>
   );
 };
@@ -93,8 +79,6 @@ const MessageEdit = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [groupOptions, setGroupOptions] = useState([]);
-  const [reactionOptions, setReactionOptions] = useState([]);
-  const [pendingReactionText, setPendingReactionText] = useState(null);
   const [newFiles, setNewFiles] = useState([]);
   const [existingFiles, setExistingFiles] = useState([]);
   const [removedFiles, setRemovedFiles] = useState([]);
@@ -104,7 +88,7 @@ const MessageEdit = () => {
     title: "",
     body: "",
     groups: [],
-    standard_message_reactions: [],
+    reaction_options: [],
     allow_multiple_reactions: false,
   });
 
@@ -118,10 +102,6 @@ const MessageEdit = () => {
         });
         setGroupOptions(groups.map((o) => ({ id: o.id, name: o.name })));
 
-        // Fetch standard reactions
-        const reactions = await getStandardReactions({ sort: "reaction" });
-        setReactionOptions(reactions.map((r) => ({ id: r.id, name: `${r.emoji} ${r.reaction}` })));
-
         // Only fetch message data if editing existing message
         if (!isCreateMode) {
           const messageData = await getMessage(id);
@@ -130,7 +110,7 @@ const MessageEdit = () => {
             title: messageData.title || "",
             body: messageData.body || "",
             groups: messageData.groups || [],
-            standard_message_reactions: messageData.standard_message_reactions || [],
+            reaction_options: messageData.reaction_options || [],
             allow_multiple_reactions: messageData.allow_multiple_reactions || false,
           });
           setExistingFiles(messageData.files || []);
@@ -157,6 +137,11 @@ const MessageEdit = () => {
       return;
     }
 
+    if (formData.groups.length === 0) {
+      alert("Kies minimaal één groep.");
+      return;
+    }
+
     setSaving(true);
     try {
       const fd = new FormData();
@@ -164,7 +149,7 @@ const MessageEdit = () => {
       fd.append("body", formData.body);
       fd.append("allow_multiple_reactions", formData.allow_multiple_reactions);
       formData.groups.forEach((g) => fd.append("groups", g));
-      formData.standard_message_reactions.forEach((r) => fd.append("standard_message_reactions", r));
+      fd.append("reaction_options", JSON.stringify(formData.reaction_options));
       newFiles.forEach((file) => fd.append("files", file));
       // Tell PocketBase which existing files to keep (removes the rest)
       if (!isCreateMode) {
@@ -193,64 +178,29 @@ const MessageEdit = () => {
 
   const fetchDeliveryInfo = async (groups) => {
     try {
-      if (groups.length > 0) {
-        const groupFilter = groups.map((g) => `group="${g}"`).join(" || ");
-        const members = await pb.collection("mb_group_members").getFullList({
-          filter: `(${groupFilter})`,
-        });
-        const userIds = [...new Set(members.map((m) => m.user))];
-        if (userIds.length === 0) return { subscribed: [], total: 0, hasGroups: true };
-        const subFilter = userIds.map((uid) => `user="${uid}"`).join(" || ");
-        const subs = await pb.collection("push_subscriptions").getFullList({
-          filter: `(${subFilter})`,
-          expand: "user",
-        });
-        const seen = new Set();
-        const subscribedUsers = [];
-        for (const sub of subs) {
-          if (!seen.has(sub.user) && sub.expand?.user) {
-            seen.add(sub.user);
-            subscribedUsers.push(sub.expand.user);
-          }
+      const groupFilter = groups.map((g) => `group="${g}"`).join(" || ");
+      const members = await pb.collection("mb_group_members").getFullList({
+        filter: `(${groupFilter})`,
+      });
+      const userIds = [...new Set(members.map((m) => m.user))];
+      if (userIds.length === 0) return { subscribed: [], total: 0 };
+      const subFilter = userIds.map((uid) => `user="${uid}"`).join(" || ");
+      const subs = await pb.collection("push_subscriptions").getFullList({
+        filter: `(${subFilter})`,
+        expand: "user",
+      });
+      const seen = new Set();
+      const subscribedUsers = [];
+      for (const sub of subs) {
+        if (!seen.has(sub.user) && sub.expand?.user) {
+          seen.add(sub.user);
+          subscribedUsers.push(sub.expand.user);
         }
-        return { subscribed: subscribedUsers, total: userIds.length, hasGroups: true };
-      } else {
-        const subs = await pb.collection("push_subscriptions").getFullList({ expand: "user" });
-        const seen = new Set();
-        const subscribedUsers = [];
-        for (const sub of subs) {
-          if (!seen.has(sub.user) && sub.expand?.user) {
-            seen.add(sub.user);
-            subscribedUsers.push(sub.expand.user);
-          }
-        }
-        return { subscribed: subscribedUsers, total: null, hasGroups: false };
       }
+      return { subscribed: subscribedUsers, total: userIds.length };
     } catch (err) {
       console.error("Error fetching delivery info:", err);
-      return { subscribed: [], total: null, hasGroups: groups.length > 0 };
-    }
-  };
-
-  const handleCreateReaction = (term) => {
-    setPendingReactionText(term);
-    return null; // don't add yet, emoji picker will handle it
-  };
-
-  const handleEmojiSelected = async (emoji) => {
-    const text = pendingReactionText;
-    setPendingReactionText(null);
-    try {
-      const result = await createStandardReaction({ emoji, reaction: text });
-      const newOption = { id: result.id, name: `${emoji} ${result.reaction}` };
-      setReactionOptions((prev) => [...prev, newOption]);
-      setFormData((prev) => ({
-        ...prev,
-        standard_message_reactions: [...prev.standard_message_reactions, result.id],
-      }));
-    } catch (error) {
-      console.error("Error creating reaction:", error);
-      alert("Er is een fout opgetreden bij het aanmaken van de reactie.");
+      return { subscribed: [], total: null };
     }
   };
 
@@ -315,29 +265,22 @@ const MessageEdit = () => {
         <DetailCard title="Ontvangers & Interactie">
           <DetailBlock>
             <Row>
-              <Label htmlFor="groups">Groepen (optioneel)</Label>
-              <div>
-                <TagSelector
-                  availableTags={groupOptions}
-                  selectedTagIds={formData.groups}
-                  onTagsChange={(ids) => setFormData({ ...formData, groups: ids })}
-                  placeholder="Type om groepen te zoeken..."
-                />
-                <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                  Laat leeg om naar alle gebruikers te verzenden.
-                </p>
-              </div>
+              <Label htmlFor="groups" required>
+                Groepen
+              </Label>
+              <TagSelector
+                availableTags={groupOptions}
+                selectedTagIds={formData.groups}
+                onTagsChange={(ids) => setFormData({ ...formData, groups: ids })}
+                placeholder="Type om groepen te zoeken..."
+              />
             </Row>
 
             <Row>
-              <Label htmlFor="standard_message_reactions">Reactieknoppen (optioneel)</Label>
-              <TagSelector
-                availableTags={reactionOptions}
-                selectedTagIds={formData.standard_message_reactions}
-                onTagsChange={(ids) => setFormData({ ...formData, standard_message_reactions: ids })}
-                onCreateNew={handleCreateReaction}
-                placeholder="Type om reacties te zoeken..."
-                createNewLabel="Aanmaken"
+              <Label htmlFor="reaction_options">Reactieknoppen (optioneel)</Label>
+              <ReactionOptionsInput
+                options={formData.reaction_options}
+                onChange={(options) => setFormData({ ...formData, reaction_options: options })}
               />
             </Row>
 
@@ -450,14 +393,6 @@ const MessageEdit = () => {
           />
         </div>
       </form>
-
-      {pendingReactionText && (
-        <EmojiPicker
-          reactionText={pendingReactionText}
-          onSelect={handleEmojiSelected}
-          onClose={() => setPendingReactionText(null)}
-        />
-      )}
 
       <MessageDeliveryModal
         isOpen={showDeliveryModal}

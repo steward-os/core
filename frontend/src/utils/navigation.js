@@ -12,7 +12,6 @@ export const adminMenuItems = [
   { key: "meeting-templates", label: "Meeting templates", path: "/meeting-templates", adminPage: true },
   { key: "tags", label: "Tags", path: "/tags", adminPage: true },
   { key: "music-recordings-admin", label: "Muziek opnames", path: "/music-recordings-admin", adminPage: true },
-  { key: "standard-reactions", label: "Standaard reacties", path: "/standard-reactions", adminPage: true },
   { key: "parameters", label: "Parameters", path: "/parameters", adminPage: true },
   { key: "media-files", label: "Bestanden", path: "/media-files", adminPage: true },
   { key: "encryptie", label: "Encryptie", path: "/encryptie", adminPage: true },

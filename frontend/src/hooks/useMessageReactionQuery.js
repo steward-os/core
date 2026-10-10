@@ -27,7 +27,7 @@ export function useUserMessageReactions(messageId, userId) {
 export function useToggleMessageReaction() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ messageId, userId, standardReactionId, existingReactionId, replaceReactionId }) => {
+    mutationFn: async ({ messageId, userId, reaction, existingReactionId, replaceReactionId }) => {
       if (existingReactionId) {
         await deleteMessageReaction(existingReactionId);
         return { action: "removed" };
@@ -38,7 +38,7 @@ export function useToggleMessageReaction() {
         const result = await createMessageReaction({
           message: messageId,
           user: userId,
-          standard_reaction: standardReactionId,
+          reaction,
         });
         return { action: "added", result };
       }

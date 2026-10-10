@@ -69,9 +69,6 @@ import RelationImport from "./pages/Relation/RelationImport";
 import RelationList from "./pages/Relation/RelationList";
 import ResetAccount from "./pages/ResetAccount";
 import SetPassword from "./pages/SetPassword";
-import StandardReactionDetail from "./pages/StandardReaction/StandardReactionDetail";
-import StandardReactionEdit from "./pages/StandardReaction/StandardReactionEdit";
-import StandardReactionList from "./pages/StandardReaction/StandardReactionList";
 import TagDetail from "./pages/Tag/TagDetail";
 import TagEdit from "./pages/Tag/TagEdit";
 import TagList from "./pages/Tag/TagList";
@@ -244,10 +241,6 @@ const App = () => {
                       <Route path="/groups/new" element={<GroupEdit />} />
                       <Route path="/groups/:id" element={<GroupDetail />} />
                       <Route path="/groups/:id/edit" element={<GroupEdit />} />
-                      <Route path="/standard-reactions" element={<StandardReactionList />} />
-                      <Route path="/standard-reactions/new" element={<StandardReactionEdit />} />
-                      <Route path="/standard-reactions/:id" element={<StandardReactionDetail />} />
-                      <Route path="/standard-reactions/:id/edit" element={<StandardReactionEdit />} />
                       <Route path="/meeting-templates" element={<MeetingTemplateList />} />
                       <Route path="/meeting-templates/new" element={<MeetingTemplateEdit />} />
                       <Route path="/meeting-templates/:id" element={<MeetingTemplateDetail />} />

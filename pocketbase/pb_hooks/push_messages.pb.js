@@ -11,38 +11,35 @@ onRecordAfterCreateSuccess(async (e) => {
   console.log("New message created:", title);
 
   try {
-    // Determine which users to send to based on groups
-    let targetUserIds = null;
-    if (groups && groups.length > 0) {
-      console.log(`Targeting groups: ${groups.join(", ")}`);
+    // Only members of the selected groups receive the message
+    if (!groups || groups.length === 0) {
+      console.log("No groups specified, skipping push notification");
+      return;
+    }
+    console.log(`Targeting groups: ${groups.join(", ")}`);
 
-      // Query mb_group_members to get all users in the selected groups
-      const groupFilters = groups.map(groupId => `group = "${groupId}"`).join(" || ");
-      const groupMembers = await e.app.findRecordsByFilter(
-        "mb_group_members",
-        `(${groupFilters})`,
-        "",
-        1000,
-        0
-      );
+    // Query mb_group_members to get all users in the selected groups
+    const groupFilters = groups.map(groupId => `group = "${groupId}"`).join(" || ");
+    const groupMembers = await e.app.findRecordsByFilter(
+      "mb_group_members",
+      `(${groupFilters})`,
+      "",
+      1000,
+      0
+    );
 
-      // Extract unique user IDs
-      targetUserIds = [...new Set(groupMembers.map(member => member.get("user")))];
-      console.log(`Found ${targetUserIds.length} unique users in ${groups.length} group(s)`);
-    } else {
-      console.log("No groups specified, sending to all users");
+    // Extract unique user IDs
+    const targetUserIds = [...new Set(groupMembers.map(member => member.get("user")))];
+    console.log(`Found ${targetUserIds.length} unique users in ${groups.length} group(s)`);
+    if (targetUserIds.length === 0) {
+      console.log("Selected groups have no members, skipping push notification");
+      return;
     }
 
-    // Build filter for push subscriptions
-    let filter = "";
-    if (targetUserIds && targetUserIds.length > 0) {
-      // Filter subscriptions to only include target users
-      const userFilters = targetUserIds.map(userId => `user = "${userId}"`).join(" || ");
-      filter = `(${userFilters})`;
-      console.log(`Fetching push subscriptions for ${targetUserIds.length} specific users...`, targetUserIds);
-    } else {
-      console.log("Fetching all push subscriptions...");
-    }
+    // Filter subscriptions to only include target users
+    const userFilters = targetUserIds.map(userId => `user = "${userId}"`).join(" || ");
+    const filter = `(${userFilters})`;
+    console.log(`Fetching push subscriptions for ${targetUserIds.length} specific users...`, targetUserIds);
 
     // Get push subscriptions
     const subscriptions = await e.app.findRecordsByFilter(

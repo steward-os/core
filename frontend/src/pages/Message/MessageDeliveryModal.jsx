@@ -5,9 +5,9 @@ import DialogPanel from "../../components/Modal/DialogPanel";
 const MessageDeliveryModal = ({ isOpen, onClose, deliveryInfo }) => {
   if (!deliveryInfo) return null;
 
-  const { subscribed, total, hasGroups } = deliveryInfo;
+  const { subscribed, total } = deliveryInfo;
   const subscribedCount = subscribed.length;
-  const notSubscribedCount = hasGroups && total !== null ? total - subscribedCount : null;
+  const notSubscribedCount = total !== null ? total - subscribedCount : null;
 
   return (
     <DialogPanel open={isOpen} onClose={onClose} title="Bericht verstuurd">
@@ -15,7 +15,7 @@ const MessageDeliveryModal = ({ isOpen, onClose, deliveryInfo }) => {
         <div className="flex items-start gap-3">
           <CheckCircleIcon className="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-gray-700 dark:text-gray-300">
-            {hasGroups
+            {total !== null
               ? `Het bericht is verstuurd als pushbericht naar ${subscribedCount} van de ${total} leden in de geselecteerde groepen.`
               : `Het bericht is verstuurd als pushbericht naar ${subscribedCount} gebruiker${subscribedCount !== 1 ? "s" : ""} met ingeschakelde pushnotificaties.`}
           </p>
