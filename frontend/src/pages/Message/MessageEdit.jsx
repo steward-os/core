@@ -1,403 +1,384 @@
-import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { ChartBarIcon, PaperAirplaneIcon, PhotoIcon, PlusIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Button } from "../../components/Button/Button";
 import { CloseButton } from "../../components/Button/CloseButton";
 import CenteredAlert from "../../components/CenteredAlert";
 import CenteredSpinner from "../../components/CenteredSpinner";
-import DetailBlock, { Label, Row } from "../../components/Detail/DetailBlock";
-import DetailCard from "../../components/Detail/DetailCard";
-import Checkbox from "../../components/Form/Checkbox";
-import Input from "../../components/Form/Input";
-import TagSelector from "../../components/Form/TagSelector";
-import Textarea from "../../components/Form/Textarea";
+import DialogPanel from "../../components/Modal/DialogPanel";
 import PageContent from "../../components/Page/PageContent";
 import PageHeader from "../../components/Page/PageHeader";
 import pb from "../../pb";
+import { markMessageRead } from "../../services/messageReadService";
 import { createMessage, getMessage, updateMessage } from "../../services/messageService";
+import { cleanReactionOptions, isVideoFile, reactionRowsFrom } from "../../utils/messageUtils";
 import MessageDeliveryModal from "./MessageDeliveryModal";
+import ReactionEditor from "./ReactionEditor";
+import SendConfirmModal from "./SendConfirmModal";
 
-const ReactionOptionsInput = ({ options, onChange }) => {
-  const [text, setText] = useState("");
+const TITLE_MAX = 200;
+const BODY_MAX = 1000;
 
-  const addOption = () => {
-    const value = text.trim();
-    if (!value) return;
-    if (!options.includes(value)) onChange([...options, value]);
-    setText("");
-  };
+/** The count only shows once it matters. */
+const Counter = ({ length, max }) =>
+  length >= max * 0.8 ? <div className="px-4 pb-1 text-right text-xs text-[var(--text-secondary)]">{length} / {max}</div> : null;
 
-  return (
-    <div>
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <Input
-            id="reaction_options"
-            placeholder="Typ een reactie, bijv. Ik kom"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addOption();
-              }
-            }}
-            maxLength={100}
-          />
-        </div>
-        <Button type="button" onClick={addOption} color="gray" text="Toevoegen" />
-      </div>
-      {options.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {options.map((option) => (
-            <span
-              key={option}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm border bg-[var(--glass-bg)] border-[var(--glass-border)] text-[var(--text-primary)]"
-            >
-              {option}
-              <button
-                type="button"
-                onClick={() => onChange(options.filter((o) => o !== option))}
-                className="text-[var(--text-secondary)] hover:text-red-500"
-                aria-label={`${option} verwijderen`}
-              >
-                &times;
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      <p className="mt-1 text-xs text-[var(--text-secondary)]">Druk op Enter om een reactie toe te voegen.</p>
-    </div>
-  );
+/** A photo or video with a button to remove it. */
+const Thumbnail = ({ src, isVideo, onRemove, disabled }) => (
+  <div className="relative flex-shrink-0 w-24 h-24">
+    {isVideo ? (
+      <video src={src} muted className="w-full h-full rounded-lg object-cover bg-black" />
+    ) : (
+      <img src={src} alt="" className="w-full h-full rounded-lg object-cover bg-black/5" />
+    )}
+    <button
+      type="button"
+      onClick={onRemove}
+      disabled={disabled}
+      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center"
+      aria-label="Bestand verwijderen"
+    >
+      <XMarkIcon className="w-4 h-4" />
+    </button>
+  </div>
+);
+
+/** Who received the push message of a message to [groups]: the members with a push subscription. */
+const fetchDeliveryInfo = async (groups) => {
+  try {
+    const groupFilter = groups.map((g) => `group="${g}"`).join(" || ");
+    const members = await pb.collection("mb_group_members").getFullList({ filter: `(${groupFilter})` });
+    const userIds = [...new Set(members.map((m) => m.user))];
+    if (userIds.length === 0) return { subscribed: [], total: 0 };
+    const subFilter = userIds.map((uid) => `user="${uid}"`).join(" || ");
+    const subs = await pb.collection("push_subscriptions").getFullList({ filter: `(${subFilter})`, expand: "user" });
+    const seen = new Set();
+    const subscribedUsers = [];
+    for (const sub of subs) {
+      if (!seen.has(sub.user) && sub.expand?.user) {
+        seen.add(sub.user);
+        subscribedUsers.push(sub.expand.user);
+      }
+    }
+    return { subscribed: subscribedUsers, total: userIds.length };
+  } catch (err) {
+    console.error("Error fetching delivery info:", err);
+    return { subscribed: [], total: null };
+  }
 };
 
+/**
+ * A compose page like a mail app's and the Android app: who it goes to, title and text without boxes
+ * around them, photos below, and the reaction buttons where members will see them, under the message.
+ * A bar at the bottom adds photos, asks for a reaction and sends.
+ */
 const MessageEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const isCreateMode = !id;
+  const queryClient = useQueryClient();
+  const isNew = !id;
+  const userId = pb.authStore.record?.id;
+  const fileInputRef = useRef(null);
+
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [dirty, setDirty] = useState(false);
   const [groupOptions, setGroupOptions] = useState([]);
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [groups, setGroups] = useState([]);
+  const [reactions, setReactions] = useState(reactionRowsFrom([]));
+  const [asksReaction, setAsksReaction] = useState(false);
+  const [reactionFocus, setReactionFocus] = useState(0);
+  const [allowMultiple, setAllowMultiple] = useState(false);
   const [newFiles, setNewFiles] = useState([]);
   const [existingFiles, setExistingFiles] = useState([]);
   const [removedFiles, setRemovedFiles] = useState([]);
+  const [pickGroups, setPickGroups] = useState(false);
+  const [confirmSend, setConfirmSend] = useState(false);
   const [deliveryInfo, setDeliveryInfo] = useState(null);
-  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
-  const [formData, setFormData] = useState({
-    title: "",
-    body: "",
-    groups: [],
-    reaction_options: [],
-    allow_multiple_reactions: false,
-  });
+
+  // Wraps a setter so any change marks the form as changed.
+  const edit = (setter) => (value) => {
+    setter(value);
+    setDirty(true);
+    setError(null);
+  };
 
   useEffect(() => {
-    const loadData = async () => {
+    const load = async () => {
       setLoading(true);
       try {
-        // Always fetch group options
-        const groups = await pb.collection("mb_groups").getFullList({
-          sort: "name",
-        });
-        setGroupOptions(groups.map((o) => ({ id: o.id, name: o.name })));
-
-        // Only fetch message data if editing existing message
-        if (!isCreateMode) {
-          const messageData = await getMessage(id);
-          setMessage(messageData);
-          setFormData({
-            title: messageData.title || "",
-            body: messageData.body || "",
-            groups: messageData.groups || [],
-            reaction_options: messageData.reaction_options || [],
-            allow_multiple_reactions: messageData.allow_multiple_reactions || false,
-          });
-          setExistingFiles(messageData.files || []);
+        const allGroups = await pb.collection("mb_groups").getFullList({ sort: "name" });
+        setGroupOptions(allGroups.map((g) => ({ id: g.id, name: g.name })));
+        if (!isNew) {
+          const data = await getMessage(id);
+          setMessage(data);
+          setTitle(data.title || "");
+          setBody(data.body || "");
+          setGroups(data.groups || []);
+          setReactions(reactionRowsFrom(data.reaction_options || []));
+          setAsksReaction((data.reaction_options || []).length > 0);
+          setAllowMultiple(!!data.allow_multiple_reactions);
+          setExistingFiles(data.files || []);
         }
-      } catch (error) {
-        console.error("Error fetching message:", error);
+      } catch (err) {
+        console.error("Error fetching message:", err);
       }
       setLoading(false);
     };
+    load();
+  }, [id, isNew]);
 
-    loadData();
-  }, [id, isCreateMode]);
+  // Object URLs for the previews of picked files, released when they go.
+  const [previews, setPreviews] = useState([]);
+  useEffect(() => {
+    const urls = newFiles.map((file) => URL.createObjectURL(file));
+    setPreviews(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [newFiles]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const close = () => {
+    if (dirty && !window.confirm("Wijzigingen weggooien? Wat je hebt ingevuld, wordt niet bewaard.")) return;
+    navigate(isNew ? "/messages" : `/messages/${id}`);
+  };
 
-    if (!formData.title.trim()) {
-      alert("Vul een titel in.");
-      return;
-    }
+  const askReaction = () => {
+    setAsksReaction(true);
+    setReactionFocus((n) => n + 1);
+  };
 
-    if (!formData.body.trim()) {
-      alert("Vul een bericht in.");
-      return;
-    }
+  const selectedGroups = groupOptions.filter((g) => groups.includes(g.id));
+  const toggleGroup = (groupId) => edit(setGroups)(groups.includes(groupId) ? groups.filter((g) => g !== groupId) : [...groups, groupId]);
 
-    if (formData.groups.length === 0) {
-      alert("Kies minimaal één groep.");
-      return;
-    }
+  /** Checks the form; a new message is confirmed first, as it is pushed to the members at once. */
+  const handleSend = () => {
+    if (groups.length === 0) return setError("Kies minimaal één groep.");
+    if (!title.trim()) return setError("Vul een titel in.");
+    if (!body.trim()) return setError("Vul een bericht in.");
+    if (isNew) setConfirmSend(true);
+    else save();
+  };
 
+  const save = async () => {
+    setConfirmSend(false);
     setSaving(true);
     try {
+      const options = cleanReactionOptions(reactions.rows);
       const fd = new FormData();
-      fd.append("title", formData.title);
-      fd.append("body", formData.body);
-      fd.append("allow_multiple_reactions", formData.allow_multiple_reactions);
-      formData.groups.forEach((g) => fd.append("groups", g));
-      fd.append("reaction_options", JSON.stringify(formData.reaction_options));
+      fd.append("title", title.trim());
+      fd.append("body", body.trim());
+      // Choosing more than one only means something with more than one button.
+      fd.append("allow_multiple_reactions", allowMultiple && options.length > 1);
+      // Keep the groups in list order.
+      selectedGroups.forEach((g) => fd.append("groups", g.id));
+      fd.append("reaction_options", JSON.stringify(options));
       newFiles.forEach((file) => fd.append("files", file));
-      // Tell PocketBase which existing files to keep (removes the rest)
-      if (!isCreateMode) {
-        const keepFiles = existingFiles.filter((f) => !removedFiles.includes(f));
-        keepFiles.forEach((f) => fd.append("files", f));
+      if (!isNew) {
+        // Tell PocketBase which existing files to keep (removes the rest).
+        existingFiles.filter((f) => !removedFiles.includes(f)).forEach((f) => fd.append("files", f));
       }
 
-      if (isCreateMode) {
+      if (isNew) {
         fd.append("url", "/messages");
-        await createMessage(fd);
-        const info = await fetchDeliveryInfo(formData.groups);
-        setDeliveryInfo(info);
-        setShowDeliveryModal(true);
+        const created = await createMessage(fd);
+        // Your own message is not new to you.
+        await markMessageRead(created.id, userId).catch(() => {});
+        queryClient.invalidateQueries({ queryKey: ["messages"] });
+        queryClient.invalidateQueries({ queryKey: ["message-reads"] });
+        setDirty(false);
+        setDeliveryInfo(await fetchDeliveryInfo(selectedGroups.map((g) => g.id)));
       } else {
         await updateMessage(id, fd);
-        // Add a small delay to ensure the update is processed
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        queryClient.invalidateQueries({ queryKey: ["messages"] });
+        queryClient.invalidateQueries({ queryKey: ["message", id] });
         navigate(`/messages/${id}`);
       }
-    } catch (error) {
-      console.error("Error saving message:", error);
-      alert("Er is een fout opgetreden bij het opslaan van het bericht.");
+    } catch (err) {
+      console.error("Error saving message:", err);
+      setError("Er is een fout opgetreden bij het opslaan van het bericht.");
     }
     setSaving(false);
   };
 
-  const fetchDeliveryInfo = async (groups) => {
-    try {
-      const groupFilter = groups.map((g) => `group="${g}"`).join(" || ");
-      const members = await pb.collection("mb_group_members").getFullList({
-        filter: `(${groupFilter})`,
-      });
-      const userIds = [...new Set(members.map((m) => m.user))];
-      if (userIds.length === 0) return { subscribed: [], total: 0 };
-      const subFilter = userIds.map((uid) => `user="${uid}"`).join(" || ");
-      const subs = await pb.collection("push_subscriptions").getFullList({
-        filter: `(${subFilter})`,
-        expand: "user",
-      });
-      const seen = new Set();
-      const subscribedUsers = [];
-      for (const sub of subs) {
-        if (!seen.has(sub.user) && sub.expand?.user) {
-          seen.add(sub.user);
-          subscribedUsers.push(sub.expand.user);
-        }
-      }
-      return { subscribed: subscribedUsers, total: userIds.length };
-    } catch (err) {
-      console.error("Error fetching delivery info:", err);
-      return { subscribed: [], total: null };
-    }
-  };
+  if (loading) return <CenteredSpinner />;
+  if (!isNew && !message) return <CenteredAlert text="Bericht niet gevonden." />;
 
-  if (loading) {
-    return <CenteredSpinner />;
-  }
-
-  if (!isCreateMode && !message && !loading) {
-    return <CenteredAlert text="Bericht niet gevonden." />;
-  }
+  const keptFiles = existingFiles.filter((f) => !removedFiles.includes(f));
+  const plainField = "w-full px-4 py-3 bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-none";
+  const toolbarButton = "inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-50";
 
   return (
-    <PageContent fullWidth>
-      <PageHeader title={isCreateMode ? "Nieuw bericht" : "Bericht bewerken"} variant="edit">
-        <CloseButton
-          onClick={() => navigate(isCreateMode ? "/messages" : `/messages/${id}`)}
-          size="normal"
-          ariaLabel="Annuleren"
-        />
-      </PageHeader>
+    <PageContent>
+      <PageHeader title={isNew ? "Nieuw bericht" : "Bericht bewerken"} backButton={<CloseButton onClick={close} size="normal" ariaLabel="Annuleren" />} />
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <DetailCard title="Berichtgegevens">
-          <DetailBlock>
-            <Row>
-              <Label htmlFor="title" required>
-                Titel
-              </Label>
-              <div>
-                <Input
-                  id="title"
-                  name="title"
-                  placeholder="Voer de titel in"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  maxLength={200}
-                />
-                <p className="mt-1 text-xs text-gray-500">Maximaal 200 karakters</p>
-              </div>
-            </Row>
-
-            <Row>
-              <Label htmlFor="body" required>
-                Bericht
-              </Label>
-              <div>
-                <Textarea
-                  id="body"
-                  name="body"
-                  placeholder="Voer het bericht in"
-                  value={formData.body}
-                  onChange={(e) => setFormData({ ...formData, body: e.target.value })}
-                  rows={4}
-                  maxLength={1000}
-                />
-                <p className="mt-1 text-xs text-gray-500">Maximaal 1000 karakters</p>
-              </div>
-            </Row>
-          </DetailBlock>
-        </DetailCard>
-
-        <DetailCard title="Ontvangers & Interactie">
-          <DetailBlock>
-            <Row>
-              <Label htmlFor="groups" required>
-                Groepen
-              </Label>
-              <TagSelector
-                availableTags={groupOptions}
-                selectedTagIds={formData.groups}
-                onTagsChange={(ids) => setFormData({ ...formData, groups: ids })}
-                placeholder="Type om groepen te zoeken..."
-              />
-            </Row>
-
-            <Row>
-              <Label htmlFor="reaction_options">Reactieknoppen (optioneel)</Label>
-              <ReactionOptionsInput
-                options={formData.reaction_options}
-                onChange={(options) => setFormData({ ...formData, reaction_options: options })}
-              />
-            </Row>
-
-            <Row>
-              <Label htmlFor="allow_multiple_reactions">Reactie-instellingen</Label>
-              <div className="pt-1">
-                <Checkbox
-                  id="allow_multiple_reactions"
-                  checked={formData.allow_multiple_reactions}
-                  onChange={(e) => setFormData({ ...formData, allow_multiple_reactions: e.target.checked })}
-                  label="Meerdere reacties toestaan"
-                />
-              </div>
-            </Row>
-          </DetailBlock>
-        </DetailCard>
-
-        <DetailCard title="Bestanden">
-          <DetailBlock>
-            <Row>
-              <Label>Foto's of video's</Label>
-              <div>
-                <label className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-                  Bestanden toevoegen
-                  <input
-                    type="file"
-                    accept="image/*,video/*"
-                    multiple
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files);
-                      setNewFiles((prev) => [...prev, ...files]);
-                      e.target.value = "";
-                    }}
-                    className="sr-only"
-                  />
-                </label>
-
-                {/* Existing files (edit mode) */}
-                {existingFiles.filter((f) => !removedFiles.includes(f)).length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {existingFiles
-                      .filter((f) => !removedFiles.includes(f))
-                      .map((filename) => {
-                        const url = pb.files.getURL(message, filename);
-                        const isVideo = /\.(mp4|webm|mov|avi)$/i.test(filename);
-                        return (
-                          <div key={filename} className="relative inline-block mr-2">
-                            {isVideo ? (
-                              <video src={url} className="h-24 rounded-lg object-cover" muted />
-                            ) : (
-                              <img src={url} alt={filename} className="h-24 rounded-lg object-cover" />
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => setRemovedFiles((prev) => [...prev, filename])}
-                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                            >
-                              &times;
-                            </button>
-                          </div>
-                        );
-                      })}
-                  </div>
-                )}
-
-                {/* New file previews */}
-                {newFiles.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {newFiles.map((file, index) => {
-                      const isVideo = file.type.startsWith("video/");
-                      const previewUrl = URL.createObjectURL(file);
-                      return (
-                        <div key={index} className="relative inline-block mr-2">
-                          {isVideo ? (
-                            <video src={previewUrl} className="h-24 rounded-lg object-cover" muted />
-                          ) : (
-                            <img src={previewUrl} alt={file.name} className="h-24 rounded-lg object-cover" />
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setNewFiles((prev) => prev.filter((_, i) => i !== index))}
-                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
-                          >
-                            &times;
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </Row>
-          </DetailBlock>
-        </DetailCard>
-
-        <div className="flex flex-col md:flex-row gap-3 pt-4">
-          <Button
-            type="button"
-            onClick={() => navigate(isCreateMode ? "/messages" : `/messages/${id}`)}
-            color="gray"
-            text="Annuleren"
-            className="w-full md:w-auto md:min-w-[160px] justify-center"
-          />
-          <Button
-            type="submit"
-            disabled={saving}
-            color="blue"
-            text={saving ? "Verzenden..." : isCreateMode ? "Verzenden" : "Opslaan"}
-            className="w-full md:w-auto md:min-w-[160px] justify-center"
-          />
+      <div className="glass-panel rounded-2xl overflow-hidden">
+        {/* "Aan": the chosen groups, tapped away or added through the picker. */}
+        <div className="flex items-start gap-3 px-4 py-3">
+          <span className="pt-1.5 text-[var(--text-secondary)]">Aan</span>
+          <div className="flex flex-wrap gap-2">
+            {selectedGroups.map((group) => (
+              <button
+                key={group.id}
+                type="button"
+                onClick={() => toggleGroup(group.id)}
+                disabled={saving}
+                className="inline-flex items-center gap-1 pl-3 pr-2 py-1.5 rounded-lg bg-blue-500/15 text-sm text-blue-700 dark:text-blue-300"
+                aria-label={`${group.name} verwijderen`}
+              >
+                {group.name}
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setPickGroups(true)}
+              disabled={saving}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[var(--text-secondary)]/40 text-sm text-[var(--text-primary)] hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              <PlusIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              Groepen kiezen
+            </button>
+          </div>
         </div>
-      </form>
+        <div className="border-t border-black/10 dark:border-white/10" />
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => edit(setTitle)(e.target.value.slice(0, TITLE_MAX))}
+          placeholder="Titel"
+          disabled={saving}
+          className={`${plainField} text-xl font-medium`}
+          aria-label="Titel"
+        />
+        <Counter length={title.length} max={TITLE_MAX} />
+        <div className="border-t border-black/10 dark:border-white/10" />
+        <textarea
+          value={body}
+          onChange={(e) => edit(setBody)(e.target.value.slice(0, BODY_MAX))}
+          placeholder="Schrijf je bericht"
+          rows={6}
+          disabled={saving}
+          className={`${plainField} resize-y`}
+          aria-label="Bericht"
+        />
+        <Counter length={body.length} max={BODY_MAX} />
 
+        {(keptFiles.length > 0 || newFiles.length > 0) && (
+          <div className="flex gap-2 overflow-x-auto px-4 py-2">
+            {keptFiles.map((filename) => (
+              <Thumbnail
+                key={filename}
+                src={pb.files.getURL(message, filename)}
+                isVideo={isVideoFile(filename)}
+                disabled={saving}
+                onRemove={() => edit(setRemovedFiles)([...removedFiles, filename])}
+              />
+            ))}
+            {newFiles.map((file, index) => (
+              <Thumbnail
+                key={`${file.name}-${index}`}
+                src={previews[index]}
+                isVideo={file.type.startsWith("video/")}
+                disabled={saving}
+                onRemove={() => edit(setNewFiles)(newFiles.filter((_, i) => i !== index))}
+              />
+            ))}
+          </div>
+        )}
+
+        <div className="px-4 py-3">
+          {asksReaction ? (
+            <ReactionEditor
+              value={reactions}
+              onChange={edit(setReactions)}
+              allowMultiple={allowMultiple}
+              onAllowMultipleChange={edit(setAllowMultiple)}
+              onClear={() => {
+                edit(setReactions)(reactionRowsFrom([]));
+                setAllowMultiple(false);
+                setAsksReaction(false);
+              }}
+              disabled={saving}
+              focusRequest={reactionFocus}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={askReaction}
+              disabled={saving}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[var(--text-secondary)]/40 text-sm text-[var(--text-primary)] hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              <PlusIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              Reactie vragen
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* In reach at the bottom of the screen, above the navigation on a phone; a problem shows right above the send button. */}
+      <div className="sticky bottom-20 md:bottom-4 mt-4 glass-panel rounded-2xl px-2 py-2">
+        {error && (
+          <p role="alert" className="mx-1 mb-2 px-3 py-2 rounded-xl bg-red-500/10 text-sm text-red-700 dark:text-red-300">
+            {error}
+          </p>
+        )}
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={saving} className={toolbarButton} aria-label="Foto's of video's toevoegen">
+            <PhotoIcon className="w-5 h-5" />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            className="sr-only"
+            onChange={(e) => {
+              edit(setNewFiles)([...newFiles, ...Array.from(e.target.files)]);
+              e.target.value = "";
+            }}
+          />
+          <button type="button" onClick={askReaction} disabled={saving} className={toolbarButton}>
+            <ChartBarIcon className="w-5 h-5" />
+            Reactie vragen
+          </button>
+          <span className="flex-1" />
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={saving}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+          >
+            {saving ? "Bezig…" : isNew ? "Verzenden" : "Opslaan"}
+            {isNew && !saving && <PaperAirplaneIcon className="w-4 h-4" />}
+          </button>
+        </div>
+      </div>
+
+      <DialogPanel open={pickGroups} onClose={() => setPickGroups(false)} title="Groepen kiezen">
+        <div className="flex flex-col">
+          {groupOptions.map((group) => (
+            <label key={group.id} className="flex items-center gap-3 py-3 cursor-pointer text-gray-900 dark:text-gray-100">
+              <input type="checkbox" checked={groups.includes(group.id)} onChange={() => toggleGroup(group.id)} className="w-5 h-5 rounded" />
+              {group.name}
+            </label>
+          ))}
+        </div>
+      </DialogPanel>
+      <SendConfirmModal
+        isOpen={confirmSend}
+        onClose={() => setConfirmSend(false)}
+        onConfirm={save}
+        groupNames={selectedGroups.map((g) => g.name)}
+        title={title.trim()}
+        body={body.trim()}
+      />
       <MessageDeliveryModal
-        isOpen={showDeliveryModal}
+        isOpen={!!deliveryInfo}
         onClose={() => {
-          setShowDeliveryModal(false);
+          setDeliveryInfo(null);
           navigate("/messages");
         }}
         deliveryInfo={deliveryInfo}

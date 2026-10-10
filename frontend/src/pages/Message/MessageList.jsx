@@ -1,141 +1,109 @@
-import dayjs from "dayjs";
-import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AddButton } from "../../components/Button";
 import CenteredAlert from "../../components/CenteredAlert";
-import { ListContainer, ListHeading } from "../../components/List";
-import { ListView } from "../../components/List/ListView";
-import { buildColumnFilterConditions } from "../../hooks/utils/useColumnFilters";
+import CenteredSpinner from "../../components/CenteredSpinner";
+import { ListContainer } from "../../components/List";
+import SearchableHeader from "../../components/Page/SearchableHeader";
+import { useReadMessageIds } from "../../hooks/useMessageReadQuery";
 import pb from "../../pb";
-import { deleteMessage, getMessages } from "../../services/messageService";
+import { getMessages } from "../../services/messageService";
+import { formatRelativeDate, isVideoFile, recipientsLabel } from "../../utils/messageUtils";
 
-const HEADER_COLUMNS = [
-  {
-    label: "Datum",
-    width: "15%",
-    field: "created",
-    sortable: true,
-    render: (item) => dayjs(item.created).format("DD-MM-YYYY HH:mm"),
-    mobilePosition: "info",
-  },
-  {
-    label: "Titel",
-    width: "55%",
-    field: "title",
-    sortable: true,
-    filter: "title",
-    render: (item) => item.title,
-    mobilePosition: "title",
-  },
-  {
-    label: "Groepen",
-    width: "30%",
-    field: "groups",
-    sortable: false,
-    filter: (value) => `groups.name ?~ "${value}"`,
-    render: (item) => {
-      const groups = item.expand?.groups;
-      if (groups && Array.isArray(groups) && groups.length > 0) {
-        const groupNames = groups.map((g) => g.name).join(", ");
-        return <span className="text">{groupNames}</span>;
-      }
-      return <span className="text text-gray-500">Alle gebruikers</span>;
-    },
-    mobilePosition: "info",
-  },
-];
+/** One message as in a mail app: the groups' initial, the title (bold while unread) with the time, and a line of text. */
+const MessageRow = ({ message, unread, onClick }) => {
+  const recipients = recipientsLabel(message);
+  const photo = (message.files || []).find((file) => !isVideoFile(file));
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        className="w-full flex items-center gap-4 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+      >
+        <span className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 flex items-center justify-center font-medium">
+          {recipients.charAt(0).toUpperCase()}
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="flex items-baseline gap-2">
+            <span className={`flex-1 truncate text-[var(--text-primary)] ${unread ? "font-bold" : ""}`}>{message.title}</span>
+            <span className={`flex-shrink-0 text-xs ${unread ? "font-bold text-blue-600 dark:text-blue-400" : "text-[var(--text-secondary)]"}`}>
+              {formatRelativeDate(message.created)}
+            </span>
+          </span>
+          <span className="flex items-center gap-2">
+            <span className={`flex-1 truncate text-sm ${unread ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}>
+              {message.body}
+            </span>
+            {unread && <span className="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-blue-600 dark:bg-blue-400" aria-label="Nieuw" />}
+          </span>
+        </span>
+        {photo && (
+          <img
+            src={pb.files.getURL(message, photo, { thumb: "100x100" })}
+            alt=""
+            loading="lazy"
+            className="flex-shrink-0 w-12 h-12 rounded-lg object-cover bg-black/5"
+          />
+        )}
+      </button>
+    </li>
+  );
+};
 
 const MessageList = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState({ sortField: "created", sortDirection: "desc", filters: {} });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = searchParams.get("q") || "";
+  const userId = pb.authStore.record?.id;
   const canSendMessages = !!pb.authStore.record?.can_send_messages || !!pb.authStore.record?.leden_app_admin;
-  const isFetchingRef = useRef(false);
-  const [refetchTrigger, setRefetchTrigger] = useState(0);
 
-  useEffect(() => {
-    if (isFetchingRef.current) {
-      console.log("Already fetching, skipping...");
-      return;
-    }
+  const { data: messages = [], isLoading, isError } = useQuery({
+    queryKey: ["messages", userId],
+    queryFn: () =>
+      getMessages({
+        expand: "groups",
+        sort: "-created",
+        // Messages to one of the user's groups, or (old ones) to everybody.
+        filter: pb.filter("(groups.mb_group_members_via_group.user ?= {:userId} || groups:length = 0)", { userId }),
+      }),
+    enabled: !!userId,
+  });
+  const { data: readIds } = useReadMessageIds(userId);
 
-    isFetchingRef.current = true;
-    setLoading(true);
+  // Kept in the URL, so the search is still there when coming back from a message.
+  const setQuery = (value) => setSearchParams(value ? { q: value } : {}, { replace: true });
 
-    const fetchMessages = async () => {
-      try {
-        const filterConditions = buildColumnFilterConditions(query.filters, HEADER_COLUMNS);
-
-        const userId = pb.authStore.record?.id;
-        filterConditions.push(`(groups.mb_group_members_via_group.user ?= "${userId}" || groups:length = 0)`);
-
-        const queryOptions = {
-          expand: "groups",
-          sort: query.sortDirection === "desc" ? `-${query.sortField}` : query.sortField,
-          ...(filterConditions.length > 0 && {
-            filter: filterConditions.join(" && "),
-          }),
-        };
-        const result = await getMessages(queryOptions);
-        setMessages(result);
-      } catch (error) {
-        console.error("Error fetching messages:", error);
-        console.error("Error details:", error.response?.data || error.message);
-      } finally {
-        setLoading(false);
-        isFetchingRef.current = false;
-      }
-    };
-
-    fetchMessages();
-  }, [query, refetchTrigger]);
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("Weet je zeker dat je dit bericht wilt verwijderen?")) {
-      return false;
-    }
-
-    try {
-      await deleteMessage(id);
-      setRefetchTrigger((prev) => prev + 1);
-      return true;
-    } catch (error) {
-      console.error("Error deleting message:", error);
-      alert("Er is een fout opgetreden bij het verwijderen van het bericht.");
-      return false;
-    }
-  };
+  const needle = query.trim().toLowerCase();
+  const visible = needle
+    ? messages.filter((m) => m.title.toLowerCase().includes(needle) || recipientsLabel(m).toLowerCase().includes(needle))
+    : messages;
 
   return (
-    <ListContainer fullWidth>
-      <ListHeading
-        button={
-          canSendMessages ? (
-            <AddButton onClick={() => navigate(`/messages/new?${searchParams.toString()}`)} ariaLabel="Nieuw bericht" />
-          ) : null
-        }
-      >
-        Berichten
-      </ListHeading>
+    <ListContainer>
+      <SearchableHeader
+        title="Berichten"
+        query={query}
+        onQueryChange={setQuery}
+        placeholder="Zoeken in berichten"
+        actions={canSendMessages ? <AddButton onClick={() => navigate("/messages/new")} ariaLabel="Nieuw bericht" /> : null}
+      />
 
-      {loading && messages.length === 0 && <CenteredAlert text="Laden..." />}
-      {(!loading || messages.length > 0) && (
-        <ListView
-          data={messages}
-          totalItems={messages.length}
-          headerColumns={HEADER_COLUMNS}
-          defaultSortField="created"
-          defaultSortDirection="desc"
-          emptyMessage="Geen berichten gevonden."
-          onClick={(item) => navigate(`/messages/${item.id}?${searchParams.toString()}`)}
-          {...(canSendMessages && {
-            onEdit: (item) => navigate(`/messages/${item.id}/edit?${searchParams.toString()}`),
-            onDelete: handleDelete,
-          })}
-          onQueryChange={setQuery}
-        />
+      {isLoading && <CenteredSpinner />}
+      {isError && <CenteredAlert text="De berichten konden niet worden geladen." />}
+      {!isLoading && !isError && visible.length === 0 && <CenteredAlert text="Geen berichten gevonden." />}
+      {visible.length > 0 && (
+        <ul className="glass-panel rounded-2xl overflow-hidden divide-y divide-black/10 dark:divide-white/10">
+          {visible.map((message) => (
+            <MessageRow
+              key={message.id}
+              message={message}
+              // Until the reads are loaded, nothing counts as new.
+              unread={!!readIds && !readIds.has(message.id)}
+              onClick={() => navigate(`/messages/${message.id}${query ? `?q=${encodeURIComponent(query)}` : ""}`)}
+            />
+          ))}
+        </ul>
       )}
     </ListContainer>
   );
