@@ -70,6 +70,17 @@ export async function updateUser(id, userData) {
 }
 
 /**
+ * Set another user's password (requires manage access to the users collection)
+ * @param {string} id - User ID
+ * @param {string} password - New password
+ * @param {string} passwordConfirm - New password, again
+ * @returns {Promise<Object>} Updated user
+ */
+export async function setUserPassword(id, password, passwordConfirm) {
+  return await pb.collection("users").update(id, { password, passwordConfirm });
+}
+
+/**
  * Delete a user
  * @param {string} id - User ID
  * @returns {Promise<boolean>} Success status

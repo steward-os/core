@@ -1,7 +1,20 @@
 /// <reference path="../pb_data/types.d.ts" />
 
+// The sender is always the logged-in user, whatever the request says, and never changes afterwards.
+// Messages made by a superuser (dashboard) have no sender: sender only points to users.
+onRecordCreateRequest((e) => {
+  const isUser = e.auth && e.auth.collection().name === "users";
+  e.record.set("sender", isUser ? e.auth.id : "");
+  e.next();
+}, "mb_messages");
+
+onRecordUpdateRequest((e) => {
+  e.record.set("sender", e.record.original().get("sender"));
+  e.next();
+}, "mb_messages");
+
 // Send push notification when a new message is created
-// This hook calls an external Node.js microservice to handle Web Push
+// This hook calls the push service (PUSH_SERVICE_URL), which delivers web push and Android (FCM) pushes
 onRecordAfterCreateSuccess(async (e) => {
   const title = e.record.get("title");
   const body = e.record.get("body");
@@ -58,8 +71,10 @@ onRecordAfterCreateSuccess(async (e) => {
     }
 
     // Prepare subscription data for the push service
+    // platform "android" rows hold an FCM token in endpoint; an empty platform means web push
     const subscriptionData = subscriptions.map(sub => ({
       id: sub.id,
+      platform: sub.get('platform') || 'web',
       endpoint: sub.get('endpoint'),
       p256dh: sub.get('p256dh'),
       auth: sub.get('auth')
@@ -84,6 +99,7 @@ onRecordAfterCreateSuccess(async (e) => {
         title: title,
         body: body,
         url: url || '/',
+        messageId: e.record.id,
         subscriptions: subscriptionData
       }),
       timeout: 30

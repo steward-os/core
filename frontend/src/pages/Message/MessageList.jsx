@@ -5,6 +5,7 @@ import CenteredAlert from "../../components/CenteredAlert";
 import CenteredSpinner from "../../components/CenteredSpinner";
 import { ListContainer } from "../../components/List";
 import SearchableHeader from "../../components/Page/SearchableHeader";
+import Tabs from "../../components/Tabs";
 import { useReadMessageIds } from "../../hooks/useMessageReadQuery";
 import pb from "../../pb";
 import { getMessages } from "../../services/messageService";
@@ -51,28 +52,45 @@ const MessageRow = ({ message, unread, onClick }) => {
   );
 };
 
+const TABS = [
+  { id: "received", label: "Ontvangen" },
+  { id: "sent", label: "Verzonden" },
+];
+
 const MessageList = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
   const userId = pb.authStore.record?.id;
   const canSendMessages = !!pb.authStore.record?.can_send_messages || !!pb.authStore.record?.leden_app_admin;
+  // Only those who can send messages have a sent list.
+  const tab = canSendMessages && searchParams.get("tab") === "sent" ? "sent" : "received";
 
   const { data: messages = [], isLoading, isError } = useQuery({
-    queryKey: ["messages", userId],
+    queryKey: ["messages", userId, tab],
     queryFn: () =>
       getMessages({
         expand: "groups",
         sort: "-created",
-        // Messages to one of the user's groups, or (old ones) to everybody.
-        filter: pb.filter("(groups.mb_group_members_via_group.user ?= {:userId} || groups:length = 0)", { userId }),
+        filter:
+          tab === "sent"
+            ? pb.filter("sender = {:userId}", { userId })
+            : // Messages to one of the user's groups, or (old ones) to everybody.
+              pb.filter("(groups.mb_group_members_via_group.user ?= {:userId} || groups:length = 0)", { userId }),
       }),
     enabled: !!userId,
   });
   const { data: readIds } = useReadMessageIds(userId);
 
-  // Kept in the URL, so the search is still there when coming back from a message.
-  const setQuery = (value) => setSearchParams(value ? { q: value } : {}, { replace: true });
+  // Search and tab are kept in the URL, so they are still there when coming back from a message.
+  const setParam = (key, value) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setSearchParams(next, { replace: true });
+  };
+  const setQuery = (value) => setParam("q", value);
+  const setTab = (value) => setParam("tab", value === "sent" ? value : null);
 
   const needle = query.trim().toLowerCase();
   const visible = needle
@@ -88,6 +106,7 @@ const MessageList = () => {
         placeholder="Zoeken in berichten"
         actions={canSendMessages ? <AddButton onClick={() => navigate("/messages/new")} ariaLabel="Nieuw bericht" /> : null}
       />
+      {canSendMessages && <Tabs tabs={TABS} activeTab={tab} onChange={setTab} />}
 
       {isLoading && <CenteredSpinner />}
       {isError && <CenteredAlert text="De berichten konden niet worden geladen." />}
@@ -98,9 +117,9 @@ const MessageList = () => {
             <MessageRow
               key={message.id}
               message={message}
-              // Until the reads are loaded, nothing counts as new.
-              unread={!!readIds && !readIds.has(message.id)}
-              onClick={() => navigate(`/messages/${message.id}${query ? `?q=${encodeURIComponent(query)}` : ""}`)}
+              // Until the reads are loaded, nothing counts as new. Your own sent messages are never new.
+              unread={tab === "received" && !!readIds && !readIds.has(message.id)}
+              onClick={() => navigate(`/messages/${message.id}${searchParams.size ? `?${searchParams}` : ""}`)}
             />
           ))}
         </ul>

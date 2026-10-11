@@ -1,4 +1,4 @@
-import { XMarkIcon as DeleteIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon as DeleteIcon, KeyIcon } from "@heroicons/react/24/outline";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -18,6 +18,7 @@ import PageContent from "../../components/Page/PageContent";
 import PageHeader from "../../components/Page/PageHeader";
 import SectionDropdown from "../../components/SectionDropdown";
 import { stateLabels } from "../../features/sessions/stateVars";
+import SetPasswordModal from "../../features/users/SetPasswordModal";
 import { useDeleteUser } from "../../hooks/crudResourceHooks";
 import { useUserAttendanceHistory, useUserGroupMembers } from "../../hooks/useUserDetailQuery";
 import pb from "../../pb";
@@ -48,6 +49,7 @@ const UserDetail = () => {
   const [statsLoading, setStatsLoading] = useState(false);
   const [newGroup, setNewGroup] = useState("");
   const [newSection, setNewSection] = useState("");
+  const [passwordOpen, setPasswordOpen] = useState(false);
 
   const [groupQuery, setGroupQuery] = useState({ sortField: "created", sortDirection: "desc", filters: {} });
   const [attendanceQuery, setAttendanceQuery] = useState({ sortField: "session", sortDirection: "desc", filters: {} });
@@ -263,8 +265,15 @@ const UserDetail = () => {
           size="normal"
           ariaLabel="Gebruiker bewerken"
         />
+        <Button onClick={() => setPasswordOpen(true)} color="gray" ariaLabel="Wachtwoord instellen">
+          <span className="inline-flex items-center gap-2">
+            <KeyIcon className="w-4 h-4" />
+            Wachtwoord instellen
+          </span>
+        </Button>
         <DeleteButton onClick={handleDelete} showText size="normal" ariaLabel="Gebruiker verwijderen" />
       </PageHeader>
+      <SetPasswordModal open={passwordOpen} onClose={() => setPasswordOpen(false)} user={user} />
 
       <div className="space-y-6">
         <DetailCard title="Gebruikersgegevens">

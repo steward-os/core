@@ -12,7 +12,6 @@ import pb from "../../pb";
 import { markMessageRead } from "../../services/messageReadService";
 import { createMessage, getMessage, updateMessage } from "../../services/messageService";
 import { cleanReactionOptions, isVideoFile, reactionRowsFrom } from "../../utils/messageUtils";
-import MessageDeliveryModal from "./MessageDeliveryModal";
 import ReactionEditor from "./ReactionEditor";
 import SendConfirmModal from "./SendConfirmModal";
 
@@ -42,30 +41,6 @@ const Thumbnail = ({ src, isVideo, onRemove, disabled }) => (
     </button>
   </div>
 );
-
-/** Who received the push message of a message to [groups]: the members with a push subscription. */
-const fetchDeliveryInfo = async (groups) => {
-  try {
-    const groupFilter = groups.map((g) => `group="${g}"`).join(" || ");
-    const members = await pb.collection("mb_group_members").getFullList({ filter: `(${groupFilter})` });
-    const userIds = [...new Set(members.map((m) => m.user))];
-    if (userIds.length === 0) return { subscribed: [], total: 0 };
-    const subFilter = userIds.map((uid) => `user="${uid}"`).join(" || ");
-    const subs = await pb.collection("push_subscriptions").getFullList({ filter: `(${subFilter})`, expand: "user" });
-    const seen = new Set();
-    const subscribedUsers = [];
-    for (const sub of subs) {
-      if (!seen.has(sub.user) && sub.expand?.user) {
-        seen.add(sub.user);
-        subscribedUsers.push(sub.expand.user);
-      }
-    }
-    return { subscribed: subscribedUsers, total: userIds.length };
-  } catch (err) {
-    console.error("Error fetching delivery info:", err);
-    return { subscribed: [], total: null };
-  }
-};
 
 /**
  * A compose page like a mail app's and the Android app: who it goes to, title and text without boxes
@@ -98,7 +73,6 @@ const MessageEdit = () => {
   const [removedFiles, setRemovedFiles] = useState([]);
   const [pickGroups, setPickGroups] = useState(false);
   const [confirmSend, setConfirmSend] = useState(false);
-  const [deliveryInfo, setDeliveryInfo] = useState(null);
 
   // Wraps a setter so any change marks the form as changed.
   const edit = (setter) => (value) => {
@@ -189,7 +163,7 @@ const MessageEdit = () => {
         queryClient.invalidateQueries({ queryKey: ["messages"] });
         queryClient.invalidateQueries({ queryKey: ["message-reads"] });
         setDirty(false);
-        setDeliveryInfo(await fetchDeliveryInfo(selectedGroups.map((g) => g.id)));
+        navigate("/messages");
       } else {
         await updateMessage(id, fd);
         queryClient.invalidateQueries({ queryKey: ["messages"] });
@@ -374,14 +348,6 @@ const MessageEdit = () => {
         groupNames={selectedGroups.map((g) => g.name)}
         title={title.trim()}
         body={body.trim()}
-      />
-      <MessageDeliveryModal
-        isOpen={!!deliveryInfo}
-        onClose={() => {
-          setDeliveryInfo(null);
-          navigate("/messages");
-        }}
-        deliveryInfo={deliveryInfo}
       />
     </PageContent>
   );
