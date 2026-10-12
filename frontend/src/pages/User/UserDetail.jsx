@@ -222,8 +222,8 @@ const UserDetail = () => {
   };
 
   const handleAddGroupMember = async () => {
-    if (!newGroup || !newSection) {
-      alert("Selecteer zowel een groep als een sectie voordat je toevoegt.");
+    if (!newGroup) {
+      alert("Selecteer een groep voordat je toevoegt.");
       return;
     }
     try {
@@ -341,8 +341,8 @@ const UserDetail = () => {
                   <Button
                     type="button"
                     onClick={handleAddGroupMember}
-                    disabled={!newGroup || !newSection}
-                    color={!newGroup || !newSection ? "gray" : "green"}
+                    disabled={!newGroup}
+                    color={!newGroup ? "gray" : "green"}
                     text="Lidmaatschap toevoegen"
                     className="justify-center"
                   />

@@ -51,6 +51,7 @@ import MeetingMinutes from "./pages/MeetingMinutes";
 import MeetingTemplateDetail from "./pages/MeetingTemplate/MeetingTemplateDetail";
 import MeetingTemplateEdit from "./pages/MeetingTemplate/MeetingTemplateEdit";
 import MeetingTemplateList from "./pages/MeetingTemplate/MeetingTemplateList";
+import SectionList from "./pages/Section/SectionList";
 import MessageDetail from "./pages/Message/MessageDetail";
 import MessageEdit from "./pages/Message/MessageEdit";
 import MessageList from "./pages/Message/MessageList";
@@ -241,6 +242,7 @@ const App = () => {
                       <Route path="/groups/new" element={<GroupEdit />} />
                       <Route path="/groups/:id" element={<GroupDetail />} />
                       <Route path="/groups/:id/edit" element={<GroupEdit />} />
+                      <Route path="/sections" element={<SectionList />} />
                       <Route path="/meeting-templates" element={<MeetingTemplateList />} />
                       <Route path="/meeting-templates/new" element={<MeetingTemplateEdit />} />
                       <Route path="/meeting-templates/:id" element={<MeetingTemplateDetail />} />

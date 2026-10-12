@@ -100,7 +100,7 @@ const MessageDetail = () => {
 
   const { data: message, isLoading } = useQuery({
     queryKey: ["message", id],
-    queryFn: () => getMessage(id, { expand: "groups" }),
+    queryFn: () => getMessage(id, { expand: "group,sections" }),
     retry: false,
   });
   const { data: userReactions } = useUserMessageReactions(id, userId);

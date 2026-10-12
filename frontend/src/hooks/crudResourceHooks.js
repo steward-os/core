@@ -13,6 +13,7 @@ import { createMeetingTemplate, deleteMeetingTemplate, getMeetingTemplate, getMe
 import { createParameter, deleteParameter, getParameter, getParametersPage, updateParameter } from '../services/parameterService';
 import { createProject, deleteProject, getProject, getProjectNotes, getProjects, updateProject } from '../services/projectService';
 import { bulkCreateRelations, createRelation, deleteRelation, getAllRelations, getRelation, getRelations, updateRelation } from '../services/relationService';
+import { createSection, deleteSection, getSection, getSections, updateSection } from '../services/sectionService';
 import { createSalesInvoice, deleteSalesInvoice, getAllInvoices, getSalesInvoice, getSalesInvoices, updateSalesInvoice } from '../services/salesInvoiceService';
 import { createSession, deleteSession, duplicateSession, getSession, getSessions, getSessionWithAttendance, updateSession } from '../services/sessionService';
 import { createUser, deleteUser, getUser, getUsersPaginated, updateUser } from '../services/userService';
@@ -83,6 +84,16 @@ export const { useList: useMeetingTemplates, useOne: useMeetingTemplate, useCrea
     update: updateMeetingTemplate,
     remove: deleteMeetingTemplate,
   }, { confirmMessage: "Weet je zeker dat je deze template wilt verwijderen?" });
+
+// --- Sections ---
+export const { useList: useSections, useOne: useSection, useCreate: useCreateSection, useUpdate: useUpdateSection, useDelete: useDeleteSection, useDeleteWithConfirm: useDeleteSectionWithConfirm } =
+  createResourceHooks('sections', {
+    getList: getSections,
+    getOne: getSection,
+    create: createSection,
+    update: updateSection,
+    remove: deleteSection,
+  }, { confirmMessage: "Weet je zeker dat je deze sectie wilt verwijderen? Leden houden hun groep, maar verliezen de sectie." });
 
 // --- Users ---
 export const { useList: useUsers, useOne: useUser, useCreate: useCreateUser, useUpdate: useUpdateUser, useDelete: useDeleteUser, useDeleteWithConfirm: useDeleteUserWithConfirm } =

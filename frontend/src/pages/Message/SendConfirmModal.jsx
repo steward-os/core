@@ -17,11 +17,12 @@ const NotificationPreview = ({ title, body }) => (
 );
 
 /** Before a new message goes out, as it is pushed to the members at once: to whom, and what they will see. */
-const SendConfirmModal = ({ isOpen, onClose, onConfirm, groupNames, title, body }) => (
+const SendConfirmModal = ({ isOpen, onClose, onConfirm, groupName, sectionNames = [], recipientCount, title, body }) => (
   <DialogPanel open={isOpen} onClose={onClose} title="Bericht versturen?">
     <div className="flex flex-col gap-4">
       <p className="text-sm text-gray-700 dark:text-gray-300">
-        Het bericht gaat als pushbericht naar de leden van {groupNames.join(", ")}.
+        Het bericht gaat als pushbericht naar {sectionNames.length > 0 ? `${sectionNames.join(", ")} van ${groupName}` : `iedereen in ${groupName}`}
+        {" "}({recipientCount === 1 ? "1 persoon" : `${recipientCount} personen`}).
       </p>
       <NotificationPreview title={title} body={body} />
       <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-2">

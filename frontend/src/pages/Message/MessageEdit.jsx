@@ -1,17 +1,19 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { ChartBarIcon, PaperAirplaneIcon, PhotoIcon, PlusIcon, XMarkIcon } from "@heroicons/react/24/outline";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { CloseButton } from "../../components/Button/CloseButton";
 import CenteredAlert from "../../components/CenteredAlert";
 import CenteredSpinner from "../../components/CenteredSpinner";
-import DialogPanel from "../../components/Modal/DialogPanel";
+import SearchableSelect from "../../components/Form/SearchableSelect";
+import TagSelector from "../../components/Form/TagSelector";
 import PageContent from "../../components/Page/PageContent";
 import PageHeader from "../../components/Page/PageHeader";
 import pb from "../../pb";
 import { markMessageRead } from "../../services/messageReadService";
+import { useGroupMembers } from "../../hooks/useMessageTargetQuery";
 import { createMessage, getMessage, updateMessage } from "../../services/messageService";
-import { cleanReactionOptions, isVideoFile, reactionRowsFrom } from "../../utils/messageUtils";
+import { cleanReactionOptions, countRecipients, isVideoFile, reactionRowsFrom, sectionOptions } from "../../utils/messageUtils";
 import ReactionEditor from "./ReactionEditor";
 import SendConfirmModal from "./SendConfirmModal";
 
@@ -63,7 +65,8 @@ const MessageEdit = () => {
   const [groupOptions, setGroupOptions] = useState([]);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [groups, setGroups] = useState([]);
+  const [group, setGroup] = useState("");
+  const [sections, setSections] = useState([]);
   const [reactions, setReactions] = useState(reactionRowsFrom([]));
   const [asksReaction, setAsksReaction] = useState(false);
   const [reactionFocus, setReactionFocus] = useState(0);
@@ -71,7 +74,6 @@ const MessageEdit = () => {
   const [newFiles, setNewFiles] = useState([]);
   const [existingFiles, setExistingFiles] = useState([]);
   const [removedFiles, setRemovedFiles] = useState([]);
-  const [pickGroups, setPickGroups] = useState(false);
   const [confirmSend, setConfirmSend] = useState(false);
 
   // Wraps a setter so any change marks the form as changed.
@@ -92,7 +94,8 @@ const MessageEdit = () => {
           setMessage(data);
           setTitle(data.title || "");
           setBody(data.body || "");
-          setGroups(data.groups || []);
+          setGroup(data.group || "");
+          setSections(data.sections || []);
           setReactions(reactionRowsFrom(data.reaction_options || []));
           setAsksReaction((data.reaction_options || []).length > 0);
           setAllowMultiple(!!data.allow_multiple_reactions);
@@ -124,12 +127,23 @@ const MessageEdit = () => {
     setReactionFocus((n) => n + 1);
   };
 
-  const selectedGroups = groupOptions.filter((g) => groups.includes(g.id));
-  const toggleGroup = (groupId) => edit(setGroups)(groups.includes(groupId) ? groups.filter((g) => g !== groupId) : [...groups, groupId]);
+  // The group's members decide which sections can be picked and how many people the message reaches.
+  const { data: members = [] } = useGroupMembers(group);
+  const sectionChoices = useMemo(() => sectionOptions(members), [members]);
+  const recipientCount = countRecipients(members, sections);
+  const selectedGroup = groupOptions.find((g) => g.id === group);
+  const sectionName = (sectionId) => members.find((m) => m.section === sectionId)?.expand?.section?.name;
+
+  /** Another group has other sections, so the chosen ones go. */
+  const chooseGroup = (groupId) => {
+    if (groupId === group) return;
+    edit(setGroup)(groupId);
+    setSections([]);
+  };
 
   /** Checks the form; a new message is confirmed first, as it is pushed to the members at once. */
   const handleSend = () => {
-    if (groups.length === 0) return setError("Kies minimaal één groep.");
+    if (!group) return setError("Kies een groep.");
     if (!title.trim()) return setError("Vul een titel in.");
     if (!body.trim()) return setError("Vul een bericht in.");
     if (isNew) setConfirmSend(true);
@@ -146,8 +160,10 @@ const MessageEdit = () => {
       fd.append("body", body.trim());
       // Choosing more than one only means something with more than one button.
       fd.append("allow_multiple_reactions", allowMultiple && options.length > 1);
-      // Keep the groups in list order.
-      selectedGroups.forEach((g) => fd.append("groups", g.id));
+      fd.append("group", group);
+      // An empty value clears the sections when editing; no sections means everyone in the group.
+      if (sections.length === 0) fd.append("sections", "");
+      sections.forEach((sectionId) => fd.append("sections", sectionId));
       fd.append("reaction_options", JSON.stringify(options));
       newFiles.forEach((file) => fd.append("files", file));
       if (!isNew) {
@@ -189,34 +205,39 @@ const MessageEdit = () => {
       <PageHeader title={isNew ? "Nieuw bericht" : "Bericht bewerken"} backButton={<CloseButton onClick={close} size="normal" ariaLabel="Annuleren" />} />
 
       <div className="glass-panel rounded-2xl overflow-hidden">
-        {/* "Aan": the chosen groups, tapped away or added through the picker. */}
-        <div className="flex items-start gap-3 px-4 py-3">
-          <span className="pt-1.5 text-[var(--text-secondary)]">Aan</span>
-          <div className="flex flex-wrap gap-2">
-            {selectedGroups.map((group) => (
-              <button
-                key={group.id}
-                type="button"
-                onClick={() => toggleGroup(group.id)}
-                disabled={saving}
-                className="inline-flex items-center gap-1 pl-3 pr-2 py-1.5 rounded-lg bg-blue-500/15 text-sm text-blue-700 dark:text-blue-300"
-                aria-label={`${group.name} verwijderen`}
-              >
-                {group.name}
-                <XMarkIcon className="w-4 h-4" />
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setPickGroups(true)}
-              disabled={saving}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[var(--text-secondary)]/40 text-sm text-[var(--text-primary)] hover:bg-black/5 dark:hover:bg-white/10"
-            >
-              <PlusIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              Groepen kiezen
-            </button>
-          </div>
+        {/* "Aan": the group, searched and picked in place. */}
+        <div className="flex items-center gap-3 px-4 py-3">
+          <span className="text-[var(--text-secondary)]">Aan</span>
+          <SearchableSelect
+            options={groupOptions.map((g) => ({ value: g.id, label: g.name }))}
+            value={group}
+            onChange={chooseGroup}
+            placeholder="Kies een groep"
+            disabled={saving}
+            className="flex-1 min-w-0"
+          />
         </div>
+        {/* Sections narrow the group down; only shown when the group's members have sections. */}
+        {sectionChoices.length > 0 && (
+          <>
+            <div className="border-t border-black/10 dark:border-white/10" />
+            <div className="flex items-start gap-3 px-4 py-3">
+              <span className="pt-1.5 text-[var(--text-secondary)]">Secties</span>
+              <TagSelector
+                availableTags={sectionChoices}
+                selectedTagIds={sections}
+                onTagsChange={edit(setSections)}
+                placeholder="Iedereen"
+                className="flex-1 min-w-0"
+              />
+            </div>
+          </>
+        )}
+        {group && (
+          <div className="px-4 pb-2 text-xs text-[var(--text-secondary)]">
+            {recipientCount === 1 ? "1 ontvanger" : `${recipientCount} ontvangers`}
+          </div>
+        )}
         <div className="border-t border-black/10 dark:border-white/10" />
         <input
           type="text"
@@ -331,21 +352,13 @@ const MessageEdit = () => {
         </div>
       </div>
 
-      <DialogPanel open={pickGroups} onClose={() => setPickGroups(false)} title="Groepen kiezen">
-        <div className="flex flex-col">
-          {groupOptions.map((group) => (
-            <label key={group.id} className="flex items-center gap-3 py-3 cursor-pointer text-gray-900 dark:text-gray-100">
-              <input type="checkbox" checked={groups.includes(group.id)} onChange={() => toggleGroup(group.id)} className="w-5 h-5 rounded" />
-              {group.name}
-            </label>
-          ))}
-        </div>
-      </DialogPanel>
       <SendConfirmModal
         isOpen={confirmSend}
         onClose={() => setConfirmSend(false)}
         onConfirm={save}
-        groupNames={selectedGroups.map((g) => g.name)}
+        groupName={selectedGroup?.name || ""}
+        sectionNames={sections.map(sectionName).filter(Boolean)}
+        recipientCount={recipientCount}
         title={title.trim()}
         body={body.trim()}
       />

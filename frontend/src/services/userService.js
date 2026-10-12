@@ -162,14 +162,14 @@ export async function getUserGroupMembers(userId) {
  * Create group membership for a user
  * @param {string} userId - User ID
  * @param {string} groupId - Group ID
- * @param {string} sectionId - Section ID
+ * @param {string} [sectionId] - Section ID, optional
  * @returns {Promise<Object>} Created group membership
  */
 export async function createUserGroupMember(userId, groupId, sectionId) {
   return await pb.collection("mb_group_members").create({
     user: userId,
     group: groupId,
-    section: sectionId,
+    section: sectionId || "",
   });
 }
 

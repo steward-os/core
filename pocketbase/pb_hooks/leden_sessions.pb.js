@@ -157,3 +157,30 @@ onRecordUpdate(async (e) => {
   e.next();
 }, "mb_sessions");
 
+
+// Rehearsal marks added or changed: one message per group of the session, to everyone in that group.
+// Runs as the app, so whoever may edit the marks (a conductor) triggers it without send permission.
+onRecordUpdate((e) => {
+  const oldMarks = (e.record.original().getString("rehearsal_marks") || "").trim();
+  const newMarks = (e.record.getString("rehearsal_marks") || "").trim();
+
+  e.next();
+
+  if (!newMarks || newMarks === oldMarks) {
+    return;
+  }
+
+  const messages = e.app.findCollectionByNameOrId("mb_messages");
+  for (const groupId of e.record.get("groups") || []) {
+    const message = new Record(messages);
+    message.set("title", "Er is een repetitie aantekening toegevoegd");
+    message.set("body", `Voor sessie: ${e.record.getString("name")}`);
+    message.set("url", `/sessions/${e.record.id}`);
+    message.set("group", groupId);
+    try {
+      e.app.save(message);
+    } catch (err) {
+      console.error("Failed to create rehearsal marks message for group:", groupId, err);
+    }
+  }
+}, "mb_sessions");

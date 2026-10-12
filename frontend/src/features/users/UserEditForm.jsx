@@ -176,12 +176,12 @@ const UserEditForm = ({ user: initialUser, onClose, onSubmit }) => {
             type="button"
             className={`mt-2 px-3 py-2 rounded-lg transition-colors
     ${
-      !newGroup || !newSection
+      !newGroup
         ? "mt-4 bg-gray-300 text-gray-500 cursor-not-allowed"
         : "mt-4 bg-green-600 text-white hover:bg-green-700"
     }
   `}
-            disabled={!newGroup || !newSection}
+            disabled={!newGroup}
             onClick={handleAddGroupMember}
           >
             Toevoegen

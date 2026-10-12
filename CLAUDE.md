@@ -63,6 +63,13 @@ pb.collection('name').update(id, data)  // update
 - PocketBase `pb.authStore` for all auth
 - Admin roles: `leden_app_session_admin`, `leden_app_volunteer_admin`, `leden_app_banner_admin`
 
+## Messages
+
+- A message (`mb_messages`) goes to exactly one `group`, optionally narrowed to `sections` (empty = everyone in the group). A member's section comes from their membership in that group (`mb_group_members.section`, optional).
+- Recipients = members of the group whose section is among `sections`, or all members when `sections` is empty. The same rule is applied in two places: `pb_hooks/push_messages.pb.js` (push) and `buildInboxFilter` in `utils/messageUtils.js` (inbox). Use `sections.id ?= …` in filters; `sections ?= …` does not match on a multi-relation.
+- API rules: read = logged in and (member of the group, sender, or `leden_app_admin`); create = `can_send_messages` or `leden_app_admin`; update/delete = sender or `leden_app_admin`. The section filter is not enforced by the API.
+- Rehearsal marks: `pb_hooks/leden_sessions.pb.js` creates one message per session group when a session's `rehearsal_marks` are added or changed.
+
 ## Optional Features
 
 - **AI text improvement**: calls `/ai/improve` on PocketBase host — not standard PocketBase; button shows error if absent

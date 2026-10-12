@@ -13,7 +13,6 @@ import CanvasViewModal from "../../features/sessions/CanvasViewModal";
 import { stateLabels } from "../../features/sessions/stateVars";
 import pb from "../../pb";
 import { getStateColorClass } from "../../utils/attendanceUtils";
-import { notifyRehearsalMarksChanged } from "../../utils/pushNotificationHelper";
 
 const UserSessionDetail = () => {
   const { id } = useParams();
@@ -111,14 +110,7 @@ const UserSessionDetail = () => {
         had_previous_marks: !!oldRehearsalMarks,
       });
 
-      // Send push notification if rehearsal marks were added or changed
-      await notifyRehearsalMarksChanged(
-        sessionId,
-        sessionName,
-        oldRehearsalMarks,
-        rehearsalMarksText,
-        attendance.expand.session.groups,
-      );
+      // The server sends a message to the session's groups when the marks were added or changed.
 
       // Update local state
       setAttendance({

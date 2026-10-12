@@ -22,10 +22,52 @@ export function formatRelativeDate(value, now = new Date()) {
   return format.format(date).replace(".", "");
 }
 
-/** The groups a message went to, or "Alle gebruikers" for old messages without groups. */
+/** The group a message went to, followed by its sections if it was narrowed to some: "Orkest · Trompet, Tuba". */
 export function recipientsLabel(message) {
-  const names = (message.expand?.groups || []).map((group) => group.name).filter(Boolean);
-  return names.length > 0 ? names.join(", ") : "Alle gebruikers";
+  const group = message.expand?.group?.name || "";
+  const sections = (message.expand?.sections || []).map((section) => section.name).filter(Boolean);
+  return sections.length > 0 ? `${group} · ${sections.join(", ")}` : group;
+}
+
+/**
+ * The sections held by members of a group, for the section picker: [{ id, name: "Trompet (6)" }] by
+ * name. Members without a section are left out; an empty list means the group has no sections.
+ */
+export function sectionOptions(memberships) {
+  const sections = new Map();
+  for (const membership of memberships) {
+    const section = membership.expand?.section;
+    if (!section) continue;
+    const entry = sections.get(section.id) || { id: section.id, label: section.name, count: 0 };
+    entry.count += 1;
+    sections.set(section.id, entry);
+  }
+  return [...sections.values()]
+    .sort((a, b) => a.label.localeCompare(b.label, "nl"))
+    .map(({ id, label, count }) => ({ id, name: `${label} (${count})` }));
+}
+
+/** How many people a message reaches: everyone in the group, or only those in [sectionIds]. */
+export function countRecipients(memberships, sectionIds = []) {
+  const reached = sectionIds.length === 0 ? memberships : memberships.filter((m) => sectionIds.includes(m.section));
+  return new Set(reached.map((m) => m.user)).size;
+}
+
+/**
+ * The inbox filter for a user with [memberships]: per membership, messages to that group for everyone,
+ * plus those narrowed to the member's section. Returns { expression, params } for pb.filter, or null
+ * when the user is in no group and receives nothing.
+ */
+export function buildInboxFilter(memberships) {
+  if (!memberships || memberships.length === 0) return null;
+  const params = {};
+  const clauses = memberships.map((membership, i) => {
+    params[`group${i}`] = membership.group;
+    if (!membership.section) return `(group = {:group${i}} && sections:length = 0)`;
+    params[`section${i}`] = membership.section;
+    return `(group = {:group${i}} && (sections:length = 0 || sections.id ?= {:section${i}}))`;
+  });
+  return { expression: clauses.join(" || "), params };
 }
 
 /** Same check as before: a video plays, anything else shows as a photo. */

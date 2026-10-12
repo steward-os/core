@@ -8,6 +8,7 @@ export const menuItems = [
 export const adminMenuItems = [
   { key: "users", label: "Gebruikers", path: "/users", adminPage: true },
   { key: "groups", label: "Groepen", path: "/groups", adminPage: true },
+  { key: "sections", label: "Secties", path: "/sections", adminPage: true },
   { key: "banners", label: "Banners", path: "/banners", adminPage: true },
   { key: "meeting-templates", label: "Meeting templates", path: "/meeting-templates", adminPage: true },
   { key: "tags", label: "Tags", path: "/tags", adminPage: true },

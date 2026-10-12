@@ -18,34 +18,34 @@ onRecordUpdateRequest((e) => {
 onRecordAfterCreateSuccess(async (e) => {
   const title = e.record.get("title");
   const body = e.record.get("body");
-  const groups = e.record.get("groups");
+  const group = e.record.get("group");
+  const sections = e.record.get("sections") || [];
   const url = e.record.get("url");
 
   console.log("New message created:", title);
 
   try {
-    // Only members of the selected groups receive the message
-    if (!groups || groups.length === 0) {
-      console.log("No groups specified, skipping push notification");
+    if (!group) {
+      console.log("No group specified, skipping push notification");
       return;
     }
-    console.log(`Targeting groups: ${groups.join(", ")}`);
+    console.log(`Targeting group ${group}` + (sections.length ? `, sections: ${sections.join(", ")}` : ", everyone"));
 
-    // Query mb_group_members to get all users in the selected groups
-    const groupFilters = groups.map(groupId => `group = "${groupId}"`).join(" || ");
-    const groupMembers = await e.app.findRecordsByFilter(
-      "mb_group_members",
-      `(${groupFilters})`,
-      "",
-      1000,
-      0
-    );
+    // Recipients: members of the group, narrowed to the chosen sections if there are any.
+    // Members without a section only match when no sections are chosen.
+    const params = { group: group };
+    let memberFilter = "group = {:group}";
+    if (sections.length > 0) {
+      sections.forEach((sectionId, i) => (params[`section${i}`] = sectionId));
+      memberFilter += ` && (${sections.map((_, i) => `section = {:section${i}}`).join(" || ")})`;
+    }
+    const groupMembers = await e.app.findRecordsByFilter("mb_group_members", memberFilter, "", 1000, 0, params);
 
     // Extract unique user IDs
     const targetUserIds = [...new Set(groupMembers.map(member => member.get("user")))];
-    console.log(`Found ${targetUserIds.length} unique users in ${groups.length} group(s)`);
+    console.log(`Found ${targetUserIds.length} recipients`);
     if (targetUserIds.length === 0) {
-      console.log("Selected groups have no members, skipping push notification");
+      console.log("No members match the group and sections, skipping push notification");
       return;
     }
 

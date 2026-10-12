@@ -81,16 +81,12 @@ const GroupDetail = () => {
   const isMessageGroup = group?.type === "message";
 
   const handleAddMember = async () => {
-    if (!addUserForm.user || (!isMessageGroup && !newSection)) {
-      alert(
-        isMessageGroup
-          ? "Selecteer een gebruiker voordat je toevoegt."
-          : "Selecteer zowel een gebruiker als een sectie voordat je toevoegt.",
-      );
+    if (!addUserForm.user) {
+      alert("Selecteer een gebruiker voordat je toevoegt.");
       return;
     }
     try {
-      await createGroupMember(id, addUserForm.user, isMessageGroup ? null : newSection, newDefaultRow || null);
+      await createGroupMember(id, addUserForm.user, isMessageGroup ? null : newSection || null, newDefaultRow || null);
       setAddUserForm({ user: "" });
       setNewSection("");
       setNewDefaultRow("");
@@ -263,8 +259,8 @@ const GroupDetail = () => {
                   <Button
                     type="button"
                     onClick={handleAddMember}
-                    disabled={!addUserForm.user || (!isMessageGroup && !newSection)}
-                    color={!addUserForm.user || (!isMessageGroup && !newSection) ? "gray" : "green"}
+                    disabled={!addUserForm.user}
+                    color={!addUserForm.user ? "gray" : "green"}
                     text="Lid toevoegen"
                     className=""
                   />

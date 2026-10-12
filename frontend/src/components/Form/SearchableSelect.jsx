@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDownIcon, XMarkIcon } from "@heroicons/react/24/outline";
 
 /**
@@ -26,6 +27,7 @@ const SearchableSelect = ({
   const [dropdownPos, setDropdownPos] = useState(null);
   const containerRef = useRef(null);
   const inputRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   const selectedLabel = options.find((o) => o.value === value)?.label || "";
 
@@ -68,7 +70,7 @@ const SearchableSelect = ({
   // Close on outside click
   useEffect(() => {
     function handleClickOutside(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+      if (containerRef.current && !containerRef.current.contains(e.target) && !dropdownRef.current?.contains(e.target)) {
         close();
       }
     }
@@ -118,9 +120,11 @@ const SearchableSelect = ({
         </button>
       )}
 
-      {/* Dropdown */}
-      {isOpen && dropdownPos && (
+      {/* Dropdown, in a portal: a fixed element inside a panel with a backdrop filter or transform would be
+          positioned relative to that panel instead of the screen. */}
+      {isOpen && dropdownPos && createPortal(
         <div
+          ref={dropdownRef}
           style={{ position: "fixed", top: dropdownPos.top, bottom: dropdownPos.bottom, left: dropdownPos.left, width: dropdownPos.width, zIndex: 9999 }}
           className="bg-white dark:bg-gray-800 border border-[var(--glass-border)] rounded-md shadow-lg max-h-52 overflow-y-auto"
         >
@@ -151,7 +155,8 @@ const SearchableSelect = ({
               </button>
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

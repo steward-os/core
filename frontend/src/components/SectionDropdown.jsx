@@ -52,14 +52,21 @@ function SectionDropdown({ value, onChange }) {
     <Listbox value={value} onChange={onChange}>
       <div onKeyDown={handleKeyDown}>
         <ListboxButton className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-left bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
-          {value
-            ? options.find((o) => o.id === value)?.name || "Kies sectie"
-            : "Kies sectie"}
+          {value ? options.find((o) => o.id === value)?.name || "(geen)" : "(geen)"}
           {filterText && (
             <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({filterText})</span>
           )}
         </ListboxButton>
         <ListboxOptions anchor="bottom start" className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded shadow-lg z-50 w-48 [--anchor-gap:4px]">
+          {/* A member does not need a section; messages to the whole group still reach them. */}
+          {!filterText && (
+            <ListboxOption
+              value=""
+              className="cursor-pointer px-3 py-2 text-gray-500 dark:text-gray-400 hover:bg-blue-100 dark:hover:bg-blue-900"
+            >
+              (geen)
+            </ListboxOption>
+          )}
           {filteredOptions.map((option) => (
             <ListboxOption
               key={option.id}

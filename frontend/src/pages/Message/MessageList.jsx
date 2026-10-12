@@ -6,12 +6,13 @@ import CenteredSpinner from "../../components/CenteredSpinner";
 import { ListContainer } from "../../components/List";
 import SearchableHeader from "../../components/Page/SearchableHeader";
 import Tabs from "../../components/Tabs";
+import { useMyMemberships } from "../../hooks/useMessageTargetQuery";
 import { useReadMessageIds } from "../../hooks/useMessageReadQuery";
 import pb from "../../pb";
 import { getMessages } from "../../services/messageService";
-import { formatRelativeDate, isVideoFile, recipientsLabel } from "../../utils/messageUtils";
+import { buildInboxFilter, formatRelativeDate, isVideoFile, recipientsLabel } from "../../utils/messageUtils";
 
-/** One message as in a mail app: the groups' initial, the title (bold while unread) with the time, and a line of text. */
+/** One message as in a mail app: the group's initial, the title (bold while unread) with the time, and a line of text. */
 const MessageRow = ({ message, unread, onClick }) => {
   const recipients = recipientsLabel(message);
   const photo = (message.files || []).find((file) => !isVideoFile(file));
@@ -66,20 +67,26 @@ const MessageList = () => {
   // Only those who can send messages have a sent list.
   const tab = canSendMessages && searchParams.get("tab") === "sent" ? "sent" : "received";
 
-  const { data: messages = [], isLoading, isError } = useQuery({
-    queryKey: ["messages", userId, tab],
-    queryFn: () =>
-      getMessages({
-        expand: "groups",
+  // Received messages follow the user's memberships: to their group for everyone, or to their section.
+  const { data: memberships, isLoading: membershipsLoading } = useMyMemberships(userId);
+  const inboxFilter = memberships ? buildInboxFilter(memberships) : null;
+
+  const { data: messages = [], isLoading: messagesLoading, isError } = useQuery({
+    queryKey: ["messages", userId, tab, inboxFilter],
+    queryFn: () => {
+      if (tab === "received" && !inboxFilter) return [];
+      return getMessages({
+        expand: "group,sections",
         sort: "-created",
         filter:
           tab === "sent"
             ? pb.filter("sender = {:userId}", { userId })
-            : // Messages to one of the user's groups, or (old ones) to everybody.
-              pb.filter("(groups.mb_group_members_via_group.user ?= {:userId} || groups:length = 0)", { userId }),
-      }),
-    enabled: !!userId,
+            : pb.filter(inboxFilter.expression, inboxFilter.params),
+      });
+    },
+    enabled: !!userId && (tab === "sent" || !!memberships),
   });
+  const isLoading = messagesLoading || (tab === "received" && membershipsLoading);
   const { data: readIds } = useReadMessageIds(userId);
 
   // Search and tab are kept in the URL, so they are still there when coming back from a message.
