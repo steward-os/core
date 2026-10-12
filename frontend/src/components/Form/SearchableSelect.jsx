@@ -10,6 +10,7 @@ import { ChevronDownIcon, XMarkIcon } from "@heroicons/react/24/outline";
  * @param {string} value - currently selected value
  * @param {(value: string) => void} onChange
  * @param {string} placeholder
+ * @param {string} searchPlaceholder - hint in the search field while open; "" for none
  * @param {boolean} disabled
  */
 const SearchableSelect = ({
@@ -17,6 +18,7 @@ const SearchableSelect = ({
   value = "",
   onChange,
   placeholder = "— Zoeken —",
+  searchPlaceholder = "Zoeken...",
   disabled = false,
   className = "",
   inputClassName = "",
@@ -90,7 +92,7 @@ const SearchableSelect = ({
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Zoeken..."
+          placeholder={searchPlaceholder}
           className={baseInput}
           onKeyDown={(e) => {
             if (e.key === "Escape") close();

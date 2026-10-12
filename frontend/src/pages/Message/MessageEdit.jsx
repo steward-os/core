@@ -6,7 +6,6 @@ import { CloseButton } from "../../components/Button/CloseButton";
 import CenteredAlert from "../../components/CenteredAlert";
 import CenteredSpinner from "../../components/CenteredSpinner";
 import SearchableSelect from "../../components/Form/SearchableSelect";
-import TagSelector from "../../components/Form/TagSelector";
 import PageContent from "../../components/Page/PageContent";
 import PageHeader from "../../components/Page/PageHeader";
 import pb from "../../pb";
@@ -15,6 +14,7 @@ import { useGroupMembers } from "../../hooks/useMessageTargetQuery";
 import { createMessage, getMessage, updateMessage } from "../../services/messageService";
 import { cleanReactionOptions, countRecipients, isVideoFile, reactionRowsFrom, sectionOptions } from "../../utils/messageUtils";
 import ReactionEditor from "./ReactionEditor";
+import SectionPicker from "./SectionPicker";
 import SendConfirmModal from "./SendConfirmModal";
 
 const TITLE_MAX = 200;
@@ -213,6 +213,7 @@ const MessageEdit = () => {
             value={group}
             onChange={chooseGroup}
             placeholder="Kies een groep"
+            searchPlaceholder=""
             disabled={saving}
             className="flex-1 min-w-0"
           />
@@ -223,11 +224,11 @@ const MessageEdit = () => {
             <div className="border-t border-black/10 dark:border-white/10" />
             <div className="flex items-start gap-3 px-4 py-3">
               <span className="pt-1.5 text-[var(--text-secondary)]">Secties</span>
-              <TagSelector
-                availableTags={sectionChoices}
-                selectedTagIds={sections}
-                onTagsChange={edit(setSections)}
-                placeholder="Iedereen"
+              <SectionPicker
+                options={sectionChoices}
+                selectedIds={sections}
+                onChange={edit(setSections)}
+                disabled={saving}
                 className="flex-1 min-w-0"
               />
             </div>
