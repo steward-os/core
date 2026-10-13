@@ -1,21 +1,17 @@
 import PocketBase from "pocketbase";
 
-const params = new URLSearchParams(window.location.search);
-const pocketbaseUrlParam = params.get("pocketbase_url");
-const tenant = params.get("tenant");
+// Every tenant has its own (sub)domain, so a production build talks to the domain it is served from
+// (nginx passes /api to the tenant) and one build serves every tenant. The dev server runs apart
+// from PocketBase.
+const fallbackUrl = import.meta.env.DEV ? `http://${window.location.hostname}:8090` : window.location.origin;
+const url = import.meta.env.VITE_POCKETBASE_URL || fallbackUrl;
 
-// defininig the url from tenants only works for the onzemuziek.nl domain
-const resolvedFromParams = pocketbaseUrlParam ?? (tenant ? `https://app.onzemuziek.nl/pb/${tenant}` : null);
-
-if (resolvedFromParams) {
-  localStorage.setItem("pocketbase_url", resolvedFromParams);
+// Left behind by the old ?tenant= / ?pocketbase_url= links; it would otherwise keep pointing elsewhere.
+try {
+  localStorage.removeItem("pocketbase_url");
+} catch {
+  // Storage can be unavailable (private mode); nothing to clean up then.
 }
-
-const url =
-  resolvedFromParams ??
-  localStorage.getItem("pocketbase_url") ??
-  import.meta.env.VITE_POCKETBASE_URL ??
-  `http://${window.location.hostname}:8090`;
 
 console.log("Using PocketBase URL:", url);
 const pb = new PocketBase(url);

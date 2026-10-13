@@ -52,7 +52,7 @@ The app is now available at `http://localhost:5173`.
 
 | Variable | Required | Description |
 |---|---|---|
-| `VITE_POCKETBASE_URL` | Yes | PocketBase base URL (default: `http://localhost:8090`) |
+| `VITE_POCKETBASE_URL` | No | PocketBase URL. Leave empty in production builds: the app then uses the domain it is served from, so one build serves every tenant. The dev server falls back to `http://<hostname>:8090` |
 | `VITE_VAPID_PUBLIC_KEY` | No | Web Push VAPID public key (enables push notifications) |
 | `VITE_PUBLIC_POSTHOG_PROJECT_TOKEN` | No | PostHog analytics token |
 | `VITE_PUBLIC_POSTHOG_HOST` | No | PostHog host (default: `https://eu.i.posthog.com`) |

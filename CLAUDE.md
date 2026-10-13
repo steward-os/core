@@ -31,7 +31,7 @@ cd frontend && npm run build
 
 | Variable | Required | Description |
 |---|---|---|
-| `VITE_POCKETBASE_URL` | Yes | PocketBase URL (default: `http://localhost:8090`) |
+| `VITE_POCKETBASE_URL` | No | PocketBase URL. Leave empty in production builds: the app then uses the domain it is served from, so one build serves every tenant. The dev server falls back to `http://<hostname>:8090` |
 | `VITE_VAPID_PUBLIC_KEY` | No | Web Push public key |
 | `VITE_PUBLIC_POSTHOG_PROJECT_TOKEN` | No | PostHog analytics |
 
